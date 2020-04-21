@@ -1,0 +1,38 @@
+Estructura del Jupyter notebook
+
+· Origen de los datos
+· EDA (Análisis sin entrar en el contenido de las opiniones)
+	· Distribución de ratings
+	· # de opiniones por año
+	· # de opiniones por usuario
+	· Dispersión (SD) del rating por producto
+	· Comparación de longitud de summary vs review
+	· Longitud de la opinión por rating
+	
+	Se elimina sesgo (hay muchas opiniones de 5 estrellas)
+	· Repetición de los puntos anteriores
+	
+· Preprocesamiento/preparación de los datos
+	· Tratamiento de palabras especiales
+	· Eliminación de stopwords
+	· Construcción de bigramas
+	· Eliminación tokens de muy baja frecuencia (sobre todo erratas y urls)
+
+· Presentación de algunas de las herramientas desarrolladas y elementos creados
+	· Elementos
+		· wordset
+	· Herramientas
+		· generate_bow
+		· buscar_tokens
+		· get_close_words
+		· analize_wordset
+		· analize_wordset_ocurrences
+		· visualize_wordsets_network
+
+· Presentación de los temas y wordsets
+
+· Análisis
+	· Interacción entre las opiniones y los temas
+		· Visto de arriba abajo (conclusiones mayormente triviales)
+		· Visto de abajo arriba (descubrimiento de patrones de pensamiento)
+	· Influencia de algunos temas en la puntuación
