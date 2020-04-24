@@ -211,7 +211,8 @@ def perform_eda(raw_data, analysis):
         raw_data = add_lenght_info(raw_data)
         raw_data['ratio_text_summary'] = raw_data.apply(lambda row: row['total_text']/row['summary_length'], axis=1)
         resultados_agregados = raw_data.groupby('rating').agg({'summary_length':np.mean, 'review_length':np.mean, 'ratio_text_summary':np.mean, 'total_text':np.mean})
-        print_stacked_histogram(resultados_agregados, 'summary_length', '# palabras en summary', 'review_length', '# palabras en review')
+        #print_stacked_histogram(resultados_agregados, 'summary_length', '# palabras en summary', 'review_length', '# palabras en review')
+        print_stacked_histogram(resultados_agregados, 'review_length', '# palabras en review', 'summary_length', '# palabras en summary')
         lista_de_ratios = []
         lista_de_ratios.append(raw_data[raw_data.rating==1]['ratio_text_summary'])
         lista_de_ratios.append(raw_data[raw_data.rating==2]['ratio_text_summary'])

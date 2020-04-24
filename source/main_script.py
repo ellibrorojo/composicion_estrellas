@@ -159,8 +159,8 @@ def print_stacked_histogram(data_agg, bottom_colname, bottom_legend, top_colname
     #plt.ylabel('# Referencias')
     #plt.xlabel('Rating')
     #plt.title("# Menciones del elemento '" + "'")
-    plt_bottom  = plt.bar(x_values, data_agg[bottom_colname], color='tab:blue')
-    plt_top     = plt.bar(x_values, data_agg[top_colname]-data_agg.summary_length, bottom=data_agg[bottom_colname], color='tab:red')
+    plt_bottom  = plt.bar(x_values, data_agg[bottom_colname], color='tab:red')
+    plt_top     = plt.bar(x_values, data_agg[top_colname]-data_agg[bottom_colname], bottom=data_agg[bottom_colname], color='tab:blue')
     plt.legend((plt_bottom[0], plt_top[0]), (bottom_legend, top_legend))
     plt.show()
 ########################################################################################################################
@@ -212,6 +212,7 @@ def perform_eda(raw_data, analysis):
         raw_data['ratio_text_summary'] = raw_data.apply(lambda row: row['total_text']/row['summary_length'], axis=1)
         resultados_agregados = raw_data.groupby('rating').agg({'summary_length':np.mean, 'review_length':np.mean, 'ratio_text_summary':np.mean, 'total_text':np.mean})
         print_stacked_histogram(resultados_agregados, 'summary_length', '# palabras en summary', 'review_length', '# palabras en review')
+        #print_stacked_histogram(resultados_agregados, 'review_length', '# palabras en review', 'summary_length', '# palabras en summary')
         lista_de_ratios = []
         lista_de_ratios.append(raw_data[raw_data.rating==1]['ratio_text_summary'])
         lista_de_ratios.append(raw_data[raw_data.rating==2]['ratio_text_summary'])
@@ -228,15 +229,6 @@ def perform_eda(raw_data, analysis):
         lista_de_longitudes.append(raw_data[raw_data.rating==4]['total_text'])
         lista_de_longitudes.append(raw_data[raw_data.rating==5]['total_text'])
         print_simple_boxplot(data = lista_de_longitudes, labels=[1, 2, 3, 4, 5], yscale='log', grid='minor')
-########################################################################################################################
-
-
-
-
-
-
-
-
 ########################################################################################################################
 def get_opinions_full_df(nrows, sampling=False):
     df = pd.read_csv (r'opinions_full_df_1000000.csv')
@@ -1594,7 +1586,7 @@ get_close_words(odf, 3, 'user_friendly', 5)
 ########################################################################################################################
 
 
-data_raw_0 = electronics_5_to_raw_data_0(1000000)
+data_raw_0 = electronics_5_to_raw_data_0(10000)
 
 perform_eda(data_raw_0, 'rating_distribution')
 perform_eda(data_raw_0, 'opinions_per_year')
@@ -1793,7 +1785,7 @@ wsw3 =   {
                     'nots': []
                     }
                     ,{
-                    'syn0': ['feels_cheap', 'poorly_made'],
+                    'syn0': ['feels_cheap', 'felt_cheap', 'cheap_feel', 'poorly_made', 'cheap_plastic', 'cheap_plastics', 'cheap_cardboard', 'cheap_feeling', 'cheap_construction', 'cheap_materials', 'cheap_material'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -1833,6 +1825,18 @@ wsw3 =   {
                     'syn0': ['design_flaw', 'design_defect', 'design_weakness', 'flawed_design', 'poor_design'],
                     'syn1': ['serious_design'],
                     'syn2': ['flaw', 'flaws'],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': busca_tokens(tokens, ['drawbacks']),
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': busca_tokens(tokens, ['drawback']),
+                    'syn1': [],
+                    'syn2': [],
                     'nots': []
                     }
                     # TAMAÑO INADECUADO
@@ -1896,6 +1900,13 @@ wsw3 =   {
                     'syn1': ['battery_life'],
                     'syn2': ['good', 'great', 'long', 'excellent'],
                     'nots': ['not']
+                    }
+                    # BUEN ASPECTO
+                    ,{
+                    'syn0': ['nice_looking'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
                     }
                     # TAMAÑO ADECUADO
                     ,{
@@ -2260,9 +2271,6 @@ wsw8 =  {
         }
 an8_fil, an8_agg = analize_wordset_not_so_naive_4(odf, wsw8, True)
 
-busca_tokens(tokens, ['dollars'])     
-
-
 wsw9 =  {
             'name':'se menciona el precio'
             ,'wordset': 
@@ -2283,6 +2291,12 @@ wsw9 =  {
                     'nots': []
                     }
                     ,{
+                    'syn0': busca_tokens(tokens, ['priced']),
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
                     'syn0': busca_tokens(tokens, ['dollar']),
                     'syn1': [],
                     'syn2': [],
@@ -2294,20 +2308,32 @@ wsw9 =  {
                     'syn2': [],
                     'nots': []
                     }
+                    ,{
+                    'syn0': busca_tokens(tokens, ['expensive']),
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['cheap', 'ridiculously_cheap', 'incredibly_cheap', 'super_cheap', 'kinda_cheap', 'relatively_cheap'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
                     ]
             }
         }
 an9_fil, an9_agg = analize_wordset_not_so_naive_4(odf, wsw9, True)
 
 wsw10 = {
-            'name':''
+            'name':'sentimiento negativo'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     {
-                    'syn0': [],
+                    'syn0': ['not_buy', 'not_bother', 'buyer_beware', 'never_buy', 'not_waste', 'throw_away', 'cannot_recommend', 'wasted_money'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2316,16 +2342,53 @@ wsw10 = {
             }
         }
 an10_fil, an10_agg = analize_wordset_not_so_naive_4(odf, wsw10, show=True)
-     
+    
+
 wsw11 = {
-            'name':''
+            'name':'sentimiento positivo'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     {
-                    'syn0': [],
+                    'syn0': ['highly_recommend', 'definitely_recommend', 'no_complaints'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['great_value', 'good_value', 'good_deal', 'well_worth', 'totally_worth', 'definately_worth'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['wise_choice', 'good_choice', 'smart_choice', 'excellent_choice', 'best_choice'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': ['not']
+                    }
+                    ,{
+                    'syn0': ['worth_every'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['excellent_product'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': busca_tokens(tokens, ['exceeds']),
+                    'syn1': ['pleasantly_surprised'],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['than_expected'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2335,61 +2398,6 @@ wsw11 = {
         }
 an11_fil, an11_agg = analize_wordset_not_so_naive_4(odf, wsw11, show=True)
       
-wsw12 = {
-            'name':''
-            ,'wordset': 
-            {
-                'ands': [],
-                'ors' :
-                    [
-                    {
-                    'syn0': [],
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ]
-            }
-        }
-an12_fil, an12_agg = analize_wordset_not_so_naive_4(odf, wsw12, show=True)
- 
-wsw13 = {
-            'name':''
-            ,'wordset': 
-            {
-                'ands': [],
-                'ors' :
-                    [
-                    {
-                    'syn0': [],
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ]
-            }
-        }
-an13_fil, an13_agg = analize_wordset_not_so_naive_4(odf, wsw13, show=True)
-
-wsw14 = {
-            'name':''
-            ,'wordset': 
-            {
-                'ands': [],
-                'ors' :
-                    [
-                    {
-                    'syn0': [],
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ]
-            }
-        }
-an14_fil, an14_agg = analize_wordset_not_so_naive_4(odf, wsw14, show=True)
-
-
 
 
 # BUSCAR RELACIONES ENTRE DOCUMENTOS RETORNADOS POR VARIOS WORDSETS
@@ -2405,9 +2413,9 @@ lista_resultados_busquedas.append({'name':wsw8['name'], 'resultados': an8_fil})
 lista_resultados_busquedas.append({'name':wsw9['name'], 'resultados': an9_fil})
 lista_resultados_busquedas.append({'name':wsw10['name'], 'resultados': an10_fil})
 lista_resultados_busquedas.append({'name':wsw11['name'], 'resultados': an11_fil})
-lista_resultados_busquedas.append({'name':wsw12['name'], 'resultados': an12_fil})
-lista_resultados_busquedas.append({'name':wsw13['name'], 'resultados': an13_fil})
-lista_resultados_busquedas.append({'name':wsw14['name'], 'resultados': an14_fil})
+#lista_resultados_busquedas.append({'name':wsw12['name'], 'resultados': an12_fil})
+#lista_resultados_busquedas.append({'name':wsw13['name'], 'resultados': an13_fil})
+#lista_resultados_busquedas.append({'name':wsw14['name'], 'resultados': an14_fil})
 
 
 matriz_doc_ws, matriz_doc_ws_agg = analize_wordset_occurrences(odf, lista_resultados_busquedas)
@@ -2437,7 +2445,9 @@ sns.heatmap(heatmap.transpose(), cmap=cmap)
 # EJ: LAS OPINIONES QUE HABLAN DE EASY INSTALL SON CÓMO RESPECTO A LAS OPINIONES QUE NO HABLAN DE EASY INSTALL
 
 
+# EXPANDIR LA FUNCION GET_CLOSE_WORDS PARA QUE DEVUELVA LA PUNTUACIÓN EN CADA CASO
 
+# HACER UNA NUEVA VISUALIZACIÓN DE RED EN QUE NO APAREZCAN OPINIONES SINO ENLACES CUYO GROSOR SEA EL VOLUMEN Y EL COLOR LO MANTENEMOS
 
 
 
@@ -2455,8 +2465,8 @@ sustantivos = words[words['pos'] == 'sustantivo'][['bigram', 'num_occurrences']]
 
 
 
-
-
+busca_tokens(tokens, ['drawbacks'])
+r = odf.loc[701359]
 
 
 
@@ -2495,7 +2505,7 @@ wswT =   {
                 'ors' :
                     [
                     {
-                    'syn0': ['not_recognize'],
+                    'syn0': ['defective'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2504,7 +2514,80 @@ wswT =   {
             }
         }
                 
-anT_fil, anT_agg = analize_wordset_not_so_naive_4(odf_sin_hits, wswT, show=True)
+anT_fil, anT_agg = analize_wordset_not_so_naive_4(odf, wswT, show=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+get_close_words(df, 3, 'defective', 8)
+
+
+
+
+
+def get_close_words_2(df, max_distance, word, n_words):
+    from collections import Counter
+    
+    
+    df = odf.loc[[1212, 1309, 1368, 1387]]
+    word = 'defective'
+    max_distance = 3
+    n_words = 8
+    
+    
+    palabras_antes = []
+    palabras_despues  = []
+    ratings_antes = []
+    ratings_despues = []
+    
+    for opinion in df.iterrows():
+        texto = opinion[1]['text'].split(', ')
+        if word in set(texto):
+            word_indices = []
+            word_indices.extend([i for i, j in enumerate(texto) if j == word])
+            for indice in word_indices:
+                texto_despues = texto[indice+1:indice+max_distance+1]
+                palabras_despues.extend(texto_despues)
+                ratings_despues.extend(len(texto_despues)*[opinion[1]['rating']])
+                texto_antes = texto[indice-max_distance:indice]
+                palabras_antes.extend(texto_antes)
+                ratings_antes.extend(len(texto_antes)*[opinion[1]['rating']])
+
+    palabras_antes_final = []
+    palabras_antes_agg = Counter(palabras_antes)
+    palabras_antes_agg = remove_stopwords_from_bow(pd.DataFrame(zip(palabras_antes_agg.keys(), palabras_antes_agg.values()), columns=['bigram', 'num_occurrences']), stopwords_modo='post').sort_values(by=['num_occurrences'], ascending=False)
+    for palabra_antes in palabras_antes_agg['bigram'].iloc[:n_words]:
+        palabras_antes_final.append(palabra_antes)
+
+    palabras_despues_final = []
+    palabras_despues_agg = Counter(palabras_despues)
+    palabras_despues_agg = remove_stopwords_from_bow(pd.DataFrame(zip(palabras_despues_agg.keys(), palabras_despues_agg.values()), columns=['bigram', 'num_occurrences']), stopwords_modo='post').sort_values(by=['num_occurrences'], ascending=False)
+    for palabra_despues in palabras_despues_agg['bigram'].iloc[:n_words]:
+        palabras_despues_final.append(palabra_despues)
+
+
+
+
+
+    return palabras_antes_final, palabras_despues_final
+
+
 
 
 
