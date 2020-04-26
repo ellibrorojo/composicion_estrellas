@@ -15,6 +15,8 @@ from matplotlib import pyplot as plt
 import nltk
 import networkx as nx
 import seaborn as sns
+import random
+import math as math
 '''
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -1653,6 +1655,236 @@ def visualize_wordsets_network_2(matriz_doc_ws_expanded, ratings='F'):
     nx.draw_networkx_labels(G, pos, labels, font_size=20)
     plt.show()
 ########################################################################################################################
+def visualize_wordsets_network_4(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F'):
+    
+    #matriz_doc_ws_expanded = mat_doc_ws_expanded.copy()
+    #ratings='F'
+    #k=0.01
+    #group_size=1
+    
+    wordsets_names_extended = list(matriz_doc_ws_expanded.columns)
+    wordsets_names_extended.remove('total_wordsets')
+    wordsets_names = wordsets_names_extended.copy()
+    wordsets_names.remove('rating')
+    
+    if ratings != 'F':
+        matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
+    
+    mat = matriz_doc_ws_expanded.groupby(wordsets_names_extended).agg({'total_wordsets':np.size})
+    mat.columns =(['num_opiniones'])
+    mat['num_opiniones_mod'] = round(mat['num_opiniones']/group_size)
+    mat = mat[mat['num_opiniones_mod'] >= 1]
+    
+    num_wordsets = len(wordsets_names)
+    edgelist = []
+    for item in mat.iterrows():
+        index_as_list = list(item[0])
+        rating = index_as_list.pop()
+        
+        for j in range(0, int(item[1]['num_opiniones_mod'])):
+            node_id = random.randint(0, 999999999)
+            i = 0
+            for tema in index_as_list:
+                if tema == 1:
+                    edge = {'from':node_id, 'to':wordsets_names[i], 'rating':rating}
+                    edgelist.append(edge)
+                i += 1
+    
+    edgelist = pd.DataFrame(edgelist)
+    
+    nodelist = wordsets_names.copy()
+    nodelist.extend(edgelist['from'].unique())
+    nodelist = pd.DataFrame(nodelist, columns=['node_name'])
+    
+    sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
+    ct = 2000/max(sizes)
+    sizes = [size * ct for size in sizes]
+    sizes.extend((len(nodelist)-num_wordsets)*[30])
+    nodelist['size'] = sizes
+    
+    grupos = np.zeros(num_wordsets).tolist()
+    #grupos.extend(edgelist['rating'])
+    grupos.extend(edgelist.groupby('from').agg({'rating':np.mean})['rating'])
+    nodelist['grupo'] = grupos
+    G = nx.Graph()
+    
+    color_map = {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
+    
+    # NODES
+    for index, row in nodelist.iterrows():
+        G.add_node(row['node_name'], group=row['grupo'], color=color_map[row['grupo']], size=row['size'])
+    
+    # EDGES
+    for index, row in edgelist.iterrows():
+        G.add_edge(row['from'], row['to'], color=color_map[row['rating']])
+    
+    labels = {}
+    for node in nodelist['node_name'][:num_wordsets]:
+        labels[node] = node
+                
+    plt.figure(figsize=(25, 25))
+    pos = nx.spring_layout(G, k=k, iterations=50)
+    edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
+    nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
+    nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
+    
+    nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=0.4)
+    nx.draw_networkx_labels(G, pos, labels, font_size=20)
+    plt.savefig('../viz/'+datetime.now().strftime('%Y%m%d%H%M%S')+'.jpg')
+    plt.show()
+########################################################################################################################  
+def get_network_color_map():
+    return {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
+########################################################################################################################
+def visualize_wordsets_network_5(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F'):
+    
+    #matriz_doc_ws_expanded = mat_doc_ws_expanded.copy()
+    #ratings='F'
+    #k=0.01
+    #group_size=1
+    
+    wordsets_names_extended = list(matriz_doc_ws_expanded.columns)
+    wordsets_names_extended.remove('total_wordsets')
+    wordsets_names = wordsets_names_extended.copy()
+    wordsets_names.remove('rating')
+    
+    if ratings != 'F':
+        matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
+    
+    mat = matriz_doc_ws_expanded.groupby(wordsets_names_extended).agg({'total_wordsets':np.size})
+    mat.columns =(['num_opiniones'])
+    mat['num_opiniones_mod'] = round(mat['num_opiniones']/group_size)
+    mat = mat[mat['num_opiniones_mod'] >= 1]
+    
+    num_wordsets = len(wordsets_names)
+    edgelist = []
+    for item in mat.iterrows():
+        index_as_list = list(item[0])
+        rating = index_as_list.pop()
+        node_id = random.randint(0, 999999999)
+        i = 0
+        for tema in index_as_list:
+            if tema == 1:
+                edge = {'from':node_id, 'to':wordsets_names[i], 'rating':rating, 'width':int(item[1]['num_opiniones_mod'])}
+                edgelist.append(edge)
+            i += 1
+            
+    edgelist = pd.DataFrame(edgelist)
+    
+    nodelist = wordsets_names.copy()
+    nodelist.extend(edgelist['from'].unique())
+    nodelist = pd.DataFrame(nodelist, columns=['node_name'])
+    
+    sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
+    ct = 2000/max(sizes)
+    sizes = [size * ct for size in sizes]
+    sizes.extend((len(nodelist)-num_wordsets)*[30])
+    nodelist['size'] = sizes
+    nodelist = pd.merge(nodelist, edgelist.groupby('from').agg({'rating':np.mean})['rating'], left_on='node_name', right_on='from', how='outer')
+    nodelist.fillna(0, inplace=True)
+    G = nx.Graph()
+        
+    # NODES
+    for index, row in nodelist.iterrows():
+        G.add_node(row['node_name'], group=row['rating'], color=get_network_color_map()[row['rating']], size=row['size'])
+    
+    # EDGES
+    for index, row in edgelist.iterrows():
+        G.add_edge(row['from'], row['to'], color=get_network_color_map()[row['rating']], width=row['width'])
+    
+    labels = {}
+    for node in nodelist['node_name'][:num_wordsets]:
+        labels[node] = node
+                
+    plt.figure(figsize=(25, 25))
+    pos = nx.spring_layout(G, k=k, iterations=50)
+    edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
+    edges, edge_widths = zip(*nx.get_edge_attributes(G, 'width').items())
+    nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
+    nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
+    
+    nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=edge_widths)
+    nx.draw_networkx_labels(G, pos, labels, font_size=20)
+    plt.savefig('../viz/'+datetime.now().strftime('%Y%m%d%H%M%S')+'.jpg')
+    plt.show()
+########################################################################################################################
+def visualize_wordsets_network_6(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F', mostrar_opiniones = False):
+    #matriz_doc_ws_expanded = mat_doc_ws_expanded.copy()
+    #ratings='F'
+    #k=0.1
+    #group_size=250
+    
+    wordsets_names_extended = list(matriz_doc_ws_expanded.columns)
+    wordsets_names_extended.remove('total_wordsets')
+    wordsets_names = wordsets_names_extended.copy()
+    wordsets_names.remove('rating')
+    
+    if ratings != 'F':
+        matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
+    
+    mat = matriz_doc_ws_expanded.groupby(wordsets_names_extended).agg({'total_wordsets':np.size})
+    mat.columns =(['num_opiniones'])
+    mat['num_opiniones_mod'] = round(mat['num_opiniones']/group_size)
+    mat = mat[mat['num_opiniones_mod'] >= 1]
+    
+    num_wordsets = len(wordsets_names)
+    edgelist = []
+    for item in mat.iterrows():
+        index_as_list = list(item[0])
+        rating = index_as_list.pop()
+        node_id = random.randint(0, 999999999)
+        i = 0
+        for tema in index_as_list:
+            if tema == 1:
+                edge = {'from':node_id, 'to':wordsets_names[i], 'rating':rating, 'width':int(item[1]['num_opiniones_mod'])}
+                edgelist.append(edge)
+            i += 1
+            
+    edgelist = pd.DataFrame(edgelist)
+    
+    nodelist = wordsets_names.copy()
+    nodelist.extend(edgelist['from'].unique())
+    nodelist = pd.DataFrame(nodelist, columns=['node_name'])
+    
+    nodelist = pd.merge(nodelist, edgelist.groupby('from').agg({'rating':np.mean})['rating'], left_on='node_name', right_on='from', how='outer')
+    nodelist.fillna(0, inplace=True)
+    
+    if mostrar_opiniones:
+        nodelist = pd.merge(nodelist, pd.concat([edgelist.groupby('to').agg({'width':np.sum}), edgelist.groupby('from').agg({'width':np.mean})])['width']*10, left_on='node_name', right_index=True, how='outer')
+        nodelist.rename(columns={'width':'size'}, inplace=True)
+    else:    
+        sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
+        ct = 2000/max(sizes)
+        sizes = [size * ct for size in sizes]
+        sizes.extend((len(nodelist)-num_wordsets)*[0])
+        nodelist['size'] = sizes
+    
+    G = nx.Graph()
+        
+    # NODES
+    for index, row in nodelist.iterrows():
+        G.add_node(row['node_name'], group=row['rating'], color=get_network_color_map()[row['rating']], size=row['size'])
+    
+    # EDGES
+    for index, row in edgelist.iterrows():
+        G.add_edge(row['from'], row['to'], color=get_network_color_map()[row['rating']], width=row['width'])
+    
+    labels = {}
+    for node in nodelist['node_name'][:num_wordsets]:
+        labels[node] = node
+                
+    plt.figure(figsize=(25, 25))
+    pos = nx.spring_layout(G, k=k, iterations=100)
+    edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
+    edges, edge_widths = zip(*nx.get_edge_attributes(G, 'width').items())
+    nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
+    nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
+    
+    nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=edge_widths)
+    nx.draw_networkx_labels(G, pos, labels, font_size=20)
+    plt.savefig('../viz/'+datetime.now().strftime('%Y%m%d%H%M%S')+'.jpg')
+    plt.show()
+########################################################################################################################
 def analize_advanced(odf, words, bow):
     wsw =   {
                 'name': 'resultados para el token ' + "'" + words + "'"
@@ -2539,149 +2771,34 @@ lista_resultados_busquedas.append({'name':wsw11['name'], 'resultados': an11_fil}
 matriz_doc_ws, matriz_doc_ws_agg = analize_wordset_occurrences(odf, lista_resultados_busquedas)
 wordsets_names = list(matriz_doc_ws.columns)
 wordsets_names.remove('total_wordsets')
-matriz_doc_ws.groupby(wordsets_names).agg({'total_wordsets':np.size})
-matriz_doc_ws_expanded = pd.merge(matriz_doc_ws, odf['rating'], left_index=True, right_index=True, how='inner')
-matriz_doc_ws_expanded_agg = matriz_doc_ws_expanded.groupby(wordsets_names).agg({'total_wordsets':[np.size, np.mean], 'rating':[np.median, np.mean, np.std]})
+#matriz_doc_ws.groupby(wordsets_names).agg({'total_wordsets':np.size})
+mat_doc_ws_expanded = pd.merge(matriz_doc_ws, odf['rating'], left_index=True, right_index=True, how='inner')
+mat_doc_ws_expanded_agg = mat_doc_ws_expanded.groupby(wordsets_names).agg({'total_wordsets':[np.size, np.mean], 'rating':[np.median, np.mean, np.std]})
+mat_doc_ws_expanded_agg.columns = ['total_opiniones', 'total_temas', 'rating_median', 'rating_mean', 'rating_sd']
+mat_doc_ws_reduced = matriz_doc_ws.drop(['total_wordsets'], axis=1)
 
-visualize_wordsets_network(matriz_doc_ws_expanded, 'F')
+visualize_wordsets_network(mat_doc_ws_expanded, ratings=[5])
+visualize_wordsets_network_4(mat_doc_ws_expanded, group_size=1, k=0.01, ratings='F')
+visualize_wordsets_network_4(mat_doc_ws_expanded, group_size=250, k=0.01, ratings='F')
+visualize_wordsets_network_5(mat_doc_ws_expanded, group_size=200, k=0.01, ratings='F')
+visualize_wordsets_network_6(mat_doc_ws_expanded, group_size=100, k=0.3, ratings=[5])
 
 
-wordsets_names_extended = wordsets_names.copy()
-wordsets_names_extended.append('rating')
 
 
-mat = matriz_doc_ws_expanded.groupby(wordsets_names_extended).agg({'total_wordsets':np.size})
-mat.columns =(['num_opiniones'])
-mat['num_opiniones_mod'] = round(mat['num_opiniones']/10)
-mat = mat[mat['num_opiniones_mod'] >= 1]
-mat['temas'] = mat.index.values
 
-import random
 
 
-edgelist = []
-for item in mat.iterrows():
-    index_as_list = list(item[0])
-    rating = index_as_list.pop()
-    i = 0
-    for tema in index_as_list:
-        if tema == 1:
-            for j in range(0, int(item[1]['num_opiniones_mod']+1)):
-                edge = {'from':random.randint(0, 999999999), 'to':wordsets_names[i], 'rating':rating}
-                edgelist.append(edge)
-        i += 1
 
+SEGUIR POR AQUIIIIII
 
+df = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
 
+for tema in wordsets_names:
+    df[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()
 
-
-
-
-
-
-
-
-
-
-
-
-# https://www.kaggle.com/jncharon/python-network-graph
-if ratings != 'F':
-    matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
-
-n_puntos_asumibles = 10000
-n_opiniones = len(matriz_doc_ws_expanded) 
-new_len = n_puntos_asumibles if n_opiniones > n_puntos_asumibles else n_opiniones
-matriz_doc_ws_expanded = matriz_doc_ws_expanded.sample(n=new_len)
-columnas = matriz_doc_ws_expanded.columns.values.tolist()
-wordsets_names = columnas[:len(columnas)-2]
-num_wordsets = len(wordsets_names)
-edgelist = []
-for item in mat.iterrows():
-    index_as_list = list(item[0])
-    rating = index_as_list.pop()
-    i = 0
-    for tema in index_as_list:
-        if tema == 1:
-            for j in range(0, int(item[1]['num_opiniones_mod']+1)):
-                edge = {'from':random.randint(0, 999999999), 'to':wordsets_names[i], 'rating':rating}
-                edgelist.append(edge)
-        i += 1
-        
-nodelist = wordsets_names.copy()
-nodelist.extend(edgelist['from'].unique())
-nodelist = pd.DataFrame(nodelist, columns=['node_name'])
-
-sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
-ct = 2000/max(sizes)
-sizes = [size * ct for size in sizes]
-sizes.extend((len(nodelist)-num_wordsets)*[30])
-nodelist['size'] = sizes
-
-grupos = np.zeros(num_wordsets).tolist()
-grupos.extend(matriz_doc_ws_expanded[matriz_doc_ws_expanded['total_wordsets'] > 0]['rating'])
-nodelist['grupo'] = grupos
-G = nx.Graph()
-
-color_map = {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
-
-# NODES
-for index, row in nodelist.iterrows():
-    G.add_node(row['node_name'], group=row['grupo'], color=color_map[row['grupo']], size=row['size'])
-
-# EDGES
-for index, row in edgelist.iterrows():
-    G.add_edge(row['from'], row['to'], color=color_map[row['rating']])
-
-labels = {}
-for node in nodelist['node_name'][:num_wordsets]:
-    labels[node] = node
-            
-plt.figure(figsize=(25, 25))
-pos = nx.spring_layout(G, k=0.01, iterations=50)
-edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
-nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
-nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
-
-nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=0.4)
-nx.draw_networkx_labels(G, pos, labels, font_size=20)
-plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+df_n = df.div(df.max(axis=0), axis=1)
+sns.heatmap(df, cmap=cmap)
 
 
 
@@ -2693,7 +2810,7 @@ wordsets_names_extended = wordsets_names.copy()
 wordsets_names_extended.append('rating')
 dic = []
 for tema in wordsets_names:
-    mat = matriz_doc_ws_expanded[wordsets_names_extended].groupby(tema).agg({'rating':[np.mean, np.std]}).transpose()
+    mat = mat_doc_ws_expanded[wordsets_names_extended].groupby(tema).agg({'rating':[np.mean, np.std]}).transpose()
     mat['0_mean'] = mat.iloc[0][0]
     mat['0_sd'] = mat.iloc[1][0]
     mat['1_mean'] = mat.iloc[0][1]
@@ -2705,7 +2822,7 @@ for tema in wordsets_names:
     dic.append(mat)
 df_temas = pd.DataFrame.from_dict(dic)
 
-heatmap = matriz_doc_ws_expanded.groupby('rating').sum()[wordsets_names]
+heatmap = mat_doc_ws_expanded.groupby('rating').sum()[wordsets_names]
 heatmap_n = heatmap.div(heatmap.max(axis=0), axis=1)
 cmap = sns.light_palette("#000000", as_cmap=True)
 sns.heatmap(heatmap_n.transpose(), cmap=cmap)
@@ -2724,7 +2841,6 @@ sns.heatmap(heatmap.transpose(), cmap=cmap)
 
 
 
-# HACER UNA NUEVA VISUALIZACIÓN DE RED EN QUE NO APAREZCAN OPINIONES SINO ENLACES CUYO GROSOR SEA EL VOLUMEN Y EL COLOR LO MANTENEMOS
 
 
 
