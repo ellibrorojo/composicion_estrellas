@@ -1925,8 +1925,9 @@ def busca_tokens(bow, words):
     timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GENERATE_BOW', timestamps)
     return tokens_a_retornar
 ########################################################################################################################
-
-
+def get_heatmap_cmap():
+    return sns.light_palette("#000000", as_cmap=True)
+########################################################################################################################
 
 
 
@@ -2790,15 +2791,17 @@ visualize_wordsets_network_6(mat_doc_ws_expanded, group_size=100, k=0.3, ratings
 
 
 
-SEGUIR POR AQUIIIIII
 
 df = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
 
 for tema in wordsets_names:
     df[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()
 
-df_n = df.div(df.max(axis=0), axis=1)
-sns.heatmap(df, cmap=cmap)
+for i in range(0, len(wordsets_names)):
+    for j in range(i, len(wordsets_names)):
+        df.iloc[i][j] = 0 #df.iloc[j][i]
+
+sns.heatmap(df, cmap=get_heatmap_cmap())
 
 
 
@@ -2823,10 +2826,13 @@ for tema in wordsets_names:
 df_temas = pd.DataFrame.from_dict(dic)
 
 heatmap = mat_doc_ws_expanded.groupby('rating').sum()[wordsets_names]
-heatmap_n = heatmap.div(heatmap.max(axis=0), axis=1)
-cmap = sns.light_palette("#000000", as_cmap=True)
-sns.heatmap(heatmap_n.transpose(), cmap=cmap)
-sns.heatmap(heatmap.transpose(), cmap=cmap)
+heatmap_n = heatmap.div(heatmap.max(axis=0), axis=1) # LEER EN HORIZONTAL, ES DECIR CADA TEMA
+sns.heatmap(heatmap_n.transpose(), cmap=get_heatmap_cmap())
+heatmap_n2 = heatmap.div(heatmap.max(axis=1), axis=0)/mat_doc_ws_reduced.sum()
+ct = 1/max(heatmap_n2.max())
+heatmap_n2 = heatmap_n2 * ct
+sns.heatmap(heatmap_n2.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
+#sns.heatmap(heatmap.transpose(), cmap=get_heatmap_cmap())
 
 
 
@@ -2836,8 +2842,35 @@ sns.heatmap(heatmap.transpose(), cmap=cmap)
 
 
 
-# VER CUÁNTO PENALIZA CADA TEMA, COMPARANDO CON EL RESTO
-# EJ: LAS OPINIONES QUE HABLAN DE EASY INSTALL SON CÓMO RESPECTO A LAS OPINIONES QUE NO HABLAN DE EASY INSTALL
+
+
+
+
+
+CONTINUAR POR AQUIIII
+
+cosa = mat_doc_ws_expanded_agg[(mat_doc_ws_expanded_agg['total_temas'] > 1) & (mat_doc_ws_expanded_agg['total_opiniones'] > 50)]
+
+lista_combinaciones_populares = []
+
+for row in cosa.iterrows():
+    combinacion = []
+    index_as_list = list(row[0])
+    i = 0
+    for tema in index_as_list:
+        if tema == 1:
+            combinacion.append(wordsets_names[i])
+        i += 1
+    lista_combinaciones_populares.append(combinacion)
+
+
+
+
+
+
+
+
+
 
 
 
