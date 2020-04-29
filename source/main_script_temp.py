@@ -16,7 +16,7 @@ import nltk
 import networkx as nx
 import seaborn as sns
 import random
-#import math as math
+import math as math
 '''
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -1383,7 +1383,7 @@ def analize_wordset_occurrences(df, lista_resultados_analize):
     print ('La ocupación parcial es del', "{:.0%}".format(ratio_ocupacion))
     print ('La ocupación total es del', "{:.0%}".format(ratio_ocupacion_total))
     
-    mat_doc_ws_expanded = pd.merge(matriz_documento_wordset, df['rating'], left_index=True, right_index=True, how='inner')
+    mat_doc_ws_expanded = pd.merge(matriz_documento_wordset, odf['rating'], left_index=True, right_index=True, how='inner')
     wordsets_names = list(matriz_documento_wordset.columns)
     wordsets_names.remove('total_wordsets')
     mat_doc_ws_expanded_agg = mat_doc_ws_expanded.groupby(wordsets_names).agg({'total_wordsets':[np.size, np.mean], 'rating':[np.median, np.mean, np.std]})
@@ -1533,7 +1533,7 @@ def visualize_wordsets_network(matriz_doc_ws_expanded, ratings='F'):
     if ratings != 'F':
         matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
     
-    n_puntos_asumibles = 10000
+    n_puntos_asumibles = 20000
     n_opiniones = len(matriz_doc_ws_expanded) 
     new_len = n_puntos_asumibles if n_opiniones > n_puntos_asumibles else n_opiniones
     matriz_doc_ws_expanded = matriz_doc_ws_expanded.sample(n=new_len)
@@ -1566,7 +1566,7 @@ def visualize_wordsets_network(matriz_doc_ws_expanded, ratings='F'):
     G = nx.Graph()
     
     color_map = {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
-    timestamps = calcula_y_muestra_tiempos('SE PROCEDE A GUARDAR NODOS Y ARISTAS', timestamps=timestamps)
+    
     # NODES
     for index, row in nodelist.iterrows():
         G.add_node(row['node_name'], group=row['grupo'], color=color_map[row['grupo']], size=row['size'])
@@ -1580,7 +1580,7 @@ def visualize_wordsets_network(matriz_doc_ws_expanded, ratings='F'):
         labels[node] = node
                 
     plt.figure(figsize=(25, 25))
-    pos = nx.spring_layout(G, k=0.01, iterations=50)
+    pos = nx.spring_layout(G, k=0.01, iterations=100)
     timestamps = calcula_y_muestra_tiempos('POS CALCULADO', timestamps=timestamps)
     edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
     nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
@@ -1992,8 +1992,9 @@ def print_rating_heatmaps(mat_doc_ws):
     sns.heatmap(heatmap_n2.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
     #sns.heatmap(heatmap.transpose(), cmap=get_heatmap_cmap())
 ########################################################################################################################
-def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names):
+def get_popular_topic_combinations(mat_doc_ws_agg):
     lista_combinaciones_populares = []
+    wordsets_names = get_wordsets_names(mat_doc_ws)
     for row in mat_doc_ws_agg[mat_doc_ws_agg['total_temas'] > 1].iterrows():
         combinacion = []
         combinacion.append(row[1]['total_opiniones'])
@@ -2059,7 +2060,7 @@ perform_eda(data_raw_1, 'text_length_per_rating')
 
 odf_false, odf = execute_preprocessing_pipeline(data_raw_1)
 odf = execute_preprocessing_pipeline(data_raw_1, False)
-odf = load_latest_odf(nrows=1532805, is_false=True)
+odf = load_latest_odf(nrows=17525, is_false=True)
 #odf = load_latest_odf(nrows=1532805, is_false=False)
 #odf_false = load_latest_odf(nrows=1532805, is_false=True)
 
@@ -2882,7 +2883,7 @@ df_sharing = get_sharing_matrix(mat_doc_ws)
 print_topic_heatmaps(mat_doc_ws)
 print_rating_heatmaps(mat_doc_ws)
 
-get_popular_topic_combinations(mat_doc_ws_agg, get_wordsets_names(mat_doc_ws))
+get_popular_topic_combinations(mat_doc_ws_agg)
 print_statistics_by_topic_heatmap(mat_doc_ws)
 
 
