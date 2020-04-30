@@ -16,6 +16,7 @@ import nltk
 import networkx as nx
 import seaborn as sns
 import random
+from scipy import stats
 #import math as math
 '''
 nltk.download('punkt')
@@ -207,6 +208,12 @@ def perform_eda(raw_data, analysis):
         
     elif analysis == 'rating_distribution':
         this_data = raw_data.groupby('rating').agg({'summary':np.size}).rename(columns={'summary':'total_docs'})['total_docs']
+        print_simple_histogram(data_agg=this_data)
+        
+    elif analysis == 'rating_distribution_item':
+        d = round(raw_data.groupby('item_id').agg({'rating':np.median}))
+        d['item_id'] = d.index.values
+        this_data = d.groupby('rating').count()['item_id']
         print_simple_histogram(data_agg=this_data)
         
     elif analysis == 'summary_review_length_comparison_per_rating':
@@ -1368,26 +1375,31 @@ def generate_bow_not_so_naive_main(odf_filtered, wsw, stopwords, show=False):
     return {'F':bowF, '1':bow1, '2':bow2, '3':bow3, '4':bow4, '5':bow5}
 ########################################################################################################################
 def analize_wordset_occurrences(df, lista_resultados_analize):
+    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN ANALIZE_WORDSET_OCCURRENCES', timestamps=[])
     matriz_documento_wordset = pd.DataFrame(index=df.index)
     for resultado_busqueda in lista_resultados_analize:
         nombre = resultado_busqueda['name']
+        timestamps = calcula_y_muestra_tiempos('SE PROCEDE A ANALIZAR EL WORDSET ' + nombre, timestamps=timestamps)
         matriz_documento_wordset[nombre] = 0
+        i = 0
         for doc_number in resultado_busqueda['resultados']['doc_number']:
             matriz_documento_wordset[nombre][doc_number] = 1
+            if i%10000 == 0:
+                timestamps = calcula_y_muestra_tiempos('BUCLE: i='+str(i)+' de '+str(len(resultado_busqueda['resultados']['doc_number'])), timestamps)
+            i += 1
     matriz_documento_wordset['total_wordsets'] = matriz_documento_wordset.sum(axis=1)
-    ratio_ocupacion_total = matriz_documento_wordset.sum().sum()/(matriz_documento_wordset.size-len(matriz_documento_wordset))
-    ratio_ocupacion = np.count_nonzero(matriz_documento_wordset['total_wordsets'])/len(matriz_documento_wordset)
     matriz_documento_wordset_agg = matriz_documento_wordset.groupby('total_wordsets').count()[matriz_documento_wordset.groupby('total_wordsets').count().columns[0]].to_frame()
     matriz_documento_wordset_agg.columns.values[0] = 'total_documents'
-    print_simple_histogram(matriz_documento_wordset_agg['total_documents'], title = '# de opiniones por hits')
-    print ('La ocupación parcial es del', "{:.0%}".format(ratio_ocupacion))
-    print ('La ocupación total es del', "{:.0%}".format(ratio_ocupacion_total))
+    print_simple_histogram(matriz_documento_wordset_agg['total_documents'], title = '# de opiniones por # de hits')
+    print ('La ocupación parcial es del', "{:.0%}".format(np.count_nonzero(matriz_documento_wordset['total_wordsets'])/len(matriz_documento_wordset)))
+    print ('La ocupación total es del', "{:.0%}".format(matriz_documento_wordset.sum().sum()/(matriz_documento_wordset.size-len(matriz_documento_wordset))))
     
     mat_doc_ws_expanded = pd.merge(matriz_documento_wordset, df['rating'], left_index=True, right_index=True, how='inner')
     wordsets_names = list(matriz_documento_wordset.columns)
     wordsets_names.remove('total_wordsets')
     mat_doc_ws_expanded_agg = mat_doc_ws_expanded.groupby(wordsets_names).agg({'total_wordsets':[np.size, np.mean], 'rating':[np.median, np.mean, np.std]})
     mat_doc_ws_expanded_agg.columns = ['total_opiniones', 'total_temas', 'rating_median', 'rating_mean', 'rating_sd']
+    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET_OCCURRENCES', timestamps=timestamps)
 
     return mat_doc_ws_expanded, mat_doc_ws_expanded_agg
 ########################################################################################################################
@@ -1494,11 +1506,13 @@ def get_close_words(df, max_distance, word, n_words):
     return palabras_antes_final, palabras_despues_final
 ########################################################################################################################
 def get_close_words_2(df, word, max_distance=3, n_words=8):
+    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN GET_CLOSE_WORDS', timestamps=[])
     palabras_antes = []
     palabras_despues  = []
     ratings_antes = []
     ratings_despues = []
     
+    i = 0
     for opinion in df.iterrows():
         texto = opinion[1]['text'].split(', ')
         if word in set(texto):
@@ -1511,7 +1525,9 @@ def get_close_words_2(df, word, max_distance=3, n_words=8):
                 texto_antes = texto[indice-max_distance:indice]
                 palabras_antes.extend(texto_antes)
                 ratings_antes.extend(len(texto_antes)*[opinion[1]['rating']])
-
+        if i%50000 == 0:
+            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: i='+str(i)+' DE '+str(len(df)), timestamps=timestamps)
+        i += 1
 
     df_antes = pd.DataFrame(list(zip(palabras_antes, ratings_antes)), columns = ['token', 'rating'])
     df_antes = df_antes.groupby('token').agg({'rating':[np.size, np.mean, np.std]}).fillna(0)
@@ -1524,7 +1540,9 @@ def get_close_words_2(df, word, max_distance=3, n_words=8):
     df_despues = df_despues.drop(remove_stopwords_from_bow_2(df_despues, 'post'))
     df_despues.columns = ['num_occurrences', 'rating_mean', 'rating_sd']
     df_despues = df_despues.sort_values(by=['num_occurrences'], ascending=False)
-
+    
+    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GET_CLOSE_WORDS', timestamps=timestamps)
+    
     return df_antes.iloc[:n_words], df_despues.iloc[:n_words]
 ########################################################################################################################
 def visualize_wordsets_network(matriz_doc_ws_expanded, ratings='F'):
@@ -2009,7 +2027,7 @@ def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names):
     df_t = pd.DataFrame(lista_combinaciones_populares).sort_values(by=0, ascending=False)
     return df_t.iloc[:10]
 ########################################################################################################################
-def statistics_by_topic(mat_doc_ws):
+'''def statistics_by_topic(mat_doc_ws):
     dic = []
     for tema in get_wordsets_names(mat_doc_ws):
         mat = mat_doc_ws[get_extended_wordsets_names(mat_doc_ws)].groupby(tema).agg({'rating':[np.mean, np.std]}).transpose()
@@ -2023,21 +2041,46 @@ def statistics_by_topic(mat_doc_ws):
         mat = {'tema':tema, '1_mean':mat['1_mean'][0], '1_sd':mat['1_sd'][0], '0_mean':mat['0_mean'][0], '0_sd':mat['0_sd'][0]}
         dic.append(mat)
     df_temas = pd.DataFrame.from_dict(dic)
+    return df_temas'''
+########################################################################################################################
+def statistics_by_topic(mat_doc_ws):
+    dic = []
+    for tema in get_wordsets_names(mat_doc_ws):
+        mat = mat_doc_ws[get_extended_wordsets_names(mat_doc_ws)].groupby(tema).agg({'rating':[np.size, np.mean, np.std]}).transpose()
+        mat['0_size'] = int(mat.iloc[0][0])
+        mat['0_mean'] = mat.iloc[1][0]
+        mat['0_sd'] = mat.iloc[2][0]
+        mat['1_size'] = int(mat.iloc[0][1])
+        mat['1_mean'] = mat.iloc[1][1]
+        mat['1_sd'] = mat.iloc[2][1]
+        mat.drop([0, 1], axis=1, inplace=True)
+        mat.drop(mat.index[1], inplace=True)
+        mat.drop(mat.index[1], inplace=True)
+        mat.set_index(pd.Series([tema]), inplace=True)
+        mat = {'tema':tema, '1_size':mat['1_size'][0], '1_mean':mat['1_mean'][0], '1_sd':mat['1_sd'][0], '0_size':mat['0_size'][0], '0_mean':mat['0_mean'][0], '0_sd':mat['0_sd'][0]}
+        dic.append(mat)
+    df_temas = pd.DataFrame.from_dict(dic)
     return df_temas
 ########################################################################################################################
-def print_statistics_by_topic_heatmap(mat_doc_ws):
+def print_statistics_by_topic_heatmap_rating_value(mat_doc_ws):
     heatmap = statistics_by_topic(mat_doc_ws)
     heatmap.index=heatmap['tema']
-    heatmap.drop(['tema', '0_sd', '1_sd'], axis=1, inplace=True)
+    heatmap.drop(['tema', '0_size', '1_size', '0_sd', '1_sd'], axis=1, inplace=True)
     heatmap = heatmap.rename(columns={'0_mean':'No Hit', '1_mean':'Hit'})
     sns.heatmap(heatmap, cmap=get_heatmap_cmap(False)) # LEER EN VERTICAL
 ########################################################################################################################
+def print_statistics_by_topic_heatmap_rating_sd(mat_doc_ws):
+    heatmap = statistics_by_topic(mat_doc_ws)
+    heatmap.index=heatmap['tema']
+    heatmap.drop(['tema', '0_size', '1_size', '0_mean', '1_mean'], axis=1, inplace=True)
+    heatmap = heatmap.rename(columns={'0_sd':'No Hit', '1_sd':'Hit'})
+    sns.heatmap(heatmap, cmap=get_heatmap_cmap()) # LEER EN VERTICAL
+########################################################################################################################
     
-    
-    
-data_raw_0 = electronics_5_to_raw_data_0(100000)
+data_raw_0 = electronics_5_to_raw_data_0(10000)
 
 perform_eda(data_raw_0, 'rating_distribution')
+perform_eda(data_raw_0, 'rating_distribution_item')
 perform_eda(data_raw_0, 'opinions_per_year')
 perform_eda(data_raw_0, 'opinions_per_item')
 perform_eda(data_raw_0, 'opinions_per_user')
@@ -2049,6 +2092,7 @@ perform_eda(data_raw_0, 'text_length_per_rating')
 data_raw_1 = remove_rating_bias_from_raw_data(data_raw_0)
 
 perform_eda(data_raw_1, 'rating_distribution')
+perform_eda(data_raw_1, 'rating_distribution_item')
 perform_eda(data_raw_1, 'opinions_per_year')
 perform_eda(data_raw_1, 'opinions_per_item')
 perform_eda(data_raw_1, 'opinions_per_user')
@@ -2085,14 +2129,11 @@ odf = load_latest_odf(nrows=1532805, is_false=True)
 
 
 
-
-
-
 tokens = generate_bow(odf, False, show=False)
 bigrams = extract_bigrams_from_bow(tokens)
 
-wsw1 =   {
-            'name':'buen funcionamiento del producto'
+wsw1_pos =   {
+            'name':'(POS) Buen Funcionamiento'
             ,'wordset': 
             {
                 'ands': [],
@@ -2100,14 +2141,23 @@ wsw1 =   {
                     [
                     # MUY POSITIVO
                     {
-                    'syn0': ['works_great', 'works_flawlessly', 'works_perfectly', 'worked_perfectly', 'works_well'],
+                    'syn0': ['works_great',
+                             'works_flawlessly',
+                             'works_perfectly',
+                             'worked_perfectly',
+                             'works_well'],
                     'syn1': [],
                     'syn2': [],
                     'nots': ['not']
                     }
                     # POSITIVO
                     ,{
-                    'syn0': ['works_fine', 'good_job', 'working_properly', 'works_ok', 'work_properly', 'serves_purpose'],
+                    'syn0': ['works_fine',
+                             'good_job',
+                             'working_properly',
+                             'works_ok',
+                             'work_properly',
+                             'serves_purpose'],
                     'syn1': [],
                     'syn2': [],
                     'nots': ['not']
@@ -2128,10 +2178,10 @@ wsw1 =   {
                     ]
             }
         }
-an1_fil, an1_agg = analize_wordset_not_so_naive_4(odf, wsw1, True)
+an1_pos_fil, an1_pos_agg = analize_wordset_not_so_naive_4(odf, wsw1_pos, True)
 
-wsw2 =   {
-            'name':'mal funcionamiento del producto'
+wsw1_neg =   {
+            'name':'(NEG) Mal Funcionamiento'
             ,'wordset': 
             {
                 'ands': [],
@@ -2140,31 +2190,38 @@ wsw2 =   {
                     # GENÉRICO, NO FUNCIONA DEBIDAMENTE
                     {
                     'syn0': ['not_work'],
-                    'syn1': ['working_properly', 'work_properly'],
+                    'syn1': ['working_properly',
+                             'work_properly'],
                     'syn2': ['not'],
                     'nots': []
                     }
                     ,{
-                    'syn0': ['faulty', 'defective', 'fluke'],
+                    'syn0': ['faulty',
+                             'defective',
+                             'fluke'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     # PROBLEMAS DE ESTABILIDAD
                     ,{
-                    'syn0': ['unstable', 'stability_issues'],
+                    'syn0': ['unstable',
+                             'stability_issues'],
                     'syn1': ['stable'],
                     'syn2': ['not'],
                     'nots': []
                     },
                     {
                     'syn0': [],
-                    'syn1': ['suddenly_stopped', 'stopped'],
-                    'syn2': ['suddenly', 'working'],
+                    'syn1': ['suddenly_stopped',
+                             'stopped'],
+                    'syn2': ['suddenly',
+                             'working'],
                     'nots': []
                     },
                     {
-                    'syn0': ['unreliable', 'works_intermittently'],
+                    'syn0': ['unreliable',
+                             'works_intermittently'],
                     'syn1': ['reliable'],
                     'syn2': ['not'],
                     'nots': []
@@ -2172,25 +2229,42 @@ wsw2 =   {
                     # DEJÓ DE FUNCIONAR O COMENZÓ A FUNCIONAR MAL
                     ,{
                     'syn0': [],
-                    'syn1': ['quit_working', 'stopped_working', 'stopped_working', 'stop_working', 'quits_working', 'quitted_working'],
+                    'syn1': ['quit_working',
+                             'stopped_working',
+                             'stopped_working',
+                             'stop_working',
+                             'quits_working',
+                             'quitted_working'],
                     'syn2': [],
                     'nots': []
                     }
                     ,{
                     'syn0': [],
-                    'syn1': ['within_week', 'within_weeks', 'week', 'weeks'],
-                    'syn2': ['stopped_working', 'started', 'broke', 'quits_working', 'quitted_working'],
+                    'syn1': ['within_week',
+                             'within_weeks',
+                             'week',
+                             'weeks'],
+                    'syn2': ['stopped_working',
+                             'started',
+                             'broke',
+                             'quits_working',
+                             'quitted_working'],
                     'nots': []
                     }
                     ,{
-                    'syn0': ['obsolescence', 'short_life', 'never_worked'],
+                    'syn0': ['obsolescence',
+                             'short_life',
+                             'never_worked'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     # ALTO CONSUMO
                     ,{
-                    'syn0': ['drains_battery', 'eat_batteries', 'eats_batteries', 'eating_batteries'],
+                    'syn0': ['drains_battery',
+                             'eat_batteries',
+                             'eats_batteries',
+                             'eating_batteries'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2204,37 +2278,156 @@ wsw2 =   {
                     ]
             }
         }
-an2_fil, an2_agg = analize_wordset_not_so_naive_4(odf, wsw2, True)
+an1_neg_fil, an1_neg_agg = analize_wordset_not_so_naive_4(odf, wsw1_neg, True)
 
-wsw3 =   {
-            'name':'característica del producto'
+wsw2_pos =   {
+            'name':'(POS) Características'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     # GENÉRICO APARIENCIA
+                    #{
+                    #'syn0': busca_tokens(tokens, ['looks']),
+                    #'syn1': [],
+                    #'syn2': [],
+                    #'nots': []
+                    #}
+                    # BUENA CALIDAD DE PIEZAS MECÁNICAS Y COMPONENTES
                     {
-                    'syn0': busca_tokens(tokens, ['looks']),
+                    'syn0': ['excellent_build',
+                             'sturdy'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
-                    # MALA CALIDAD DE PIEZAS MECÁNICAS Y COMPONENTES
                     ,{
+                    'syn0': ['well_made',
+                             'quite_good',
+                             'well_designed',
+                             'excellent_product',
+                             'high_quality'],
+                    'syn1': ['build_quality',
+                             'image_quality'],
+                    'syn2': ['good',
+                             'nice',
+                             'high'],
+                    'nots': []
+                    },
+                    {
+                    'syn0': ['excellent_product',
+                             'excellent_quality',
+                             'excellent_results',
+                             'excellent_sound'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['sounds_great'],
+                    'syn1': ['sound_quality',
+                             'audio_quality'],
+                    'syn2': ['good',
+                             'great',
+                             'excellent'],
+                    'nots': ['not']
+                    }
+                    ,{
+                    'syn0': [],
+                    'syn1': ['picture_quality',
+                             'image_quality'],
+                    'syn2': ['good',
+                             'great',
+                             'excellent'],
+                    'nots': ['not']
+                    }
+                    ,{
+                    'syn0': [],
+                    'syn1': ['battery_life'],
+                    'syn2': ['good',
+                             'great',
+                             'long',
+                             'excellent'],
+                    'nots': ['not']
+                    }
+                    # BUEN ASPECTO
+                    ,{
+                    'syn0': ['nice_looking'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    # TAMAÑO ADECUADO
+                    ,{
+                    'syn0': ['fit_perfectly'],
+                    'syn1': ['fit',
+                             'fits'],
+                    'syn2': ['good',
+                             'perfectly',
+                             'right'],
+                    'nots': ['not']
+                    }
+                    ,{
+                    'syn0': ['perfect_size'],
+                    'syn1': ['size',
+                             'length'],
+                    'syn2': ['perfect'],
+                    'nots': []
+                    }
+                    ]
+            }
+        }               
+an2_pos_fil, an2_pos_agg = analize_wordset_not_so_naive_4(odf, wsw2_pos, True)
+
+wsw2_neg =   {
+            'name':'(NEG) Características'
+            ,'wordset': 
+            {
+                'ands': [],
+                'ors' :
+                    [
+                    # GENÉRICO APARIENCIA
+                    #{
+                    #'syn0': busca_tokens(tokens, ['looks']),
+                    #'syn1': [],
+                    #'syn2': [],
+                    #'nots': []
+                    #}
+                    # MALA CALIDAD DE PIEZAS MECÁNICAS Y COMPONENTES
+                    {
                     'syn0': busca_tokens(tokens, ['defective']),
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     ,{
-                    'syn0': ['broke_apart', 'fell_apart', 'fall_apart', 'falling_apart',  'cheaply_made', 'cheap_plastic', 'poor_quality', 'bit_flimsy', 'defective_product', 'poorly_constructed'],
+                    'syn0': ['broke_apart',
+                             'fell_apart',
+                             'fall_apart',
+                             'falling_apart',
+                             'cheaply_made',
+                             'cheap_plastic',
+                             'poor_quality',
+                             'bit_flimsy',
+                             'defective_product',
+                             'poorly_constructed'],
                     'syn1': ['melted'],
                     'syn2': [],
                     'nots': []
                     }
                     ,{
-                    'syn0': ['feels_cheap', 'felt_cheap', 'cheap_feel', 'poorly_made', 'cheap_plastic', 'cheap_plastics', 'cheap_cardboard', 'cheap_feeling', 'cheap_construction', 'cheap_materials', 'cheap_material'],
+                    'syn0': ['feels_cheap',
+                             'felt_cheap',
+                             'cheap_feel',
+                             'poorly_made',
+                             'cheap_plastic',
+                             'cheap_plastics',
+                             'cheap_cardboard',
+                             'cheap_feeling',
+                             'cheap_construction',
+                             'cheap_materials',
+                             'cheap_material'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2246,21 +2439,32 @@ wsw3 =   {
                     'nots': ['not']
                     }
                     ,{
-                    'syn0': ['broke_within', 'easily_broken', 'breaks_easily', 'breaks_easy', 'breaks_every', 'breaks_quickly', 'broke_quickly', 'broke_shortly'],
+                    'syn0': ['broke_within',
+                             'easily_broken',
+                             'breaks_easily',
+                             'breaks_easy',
+                             'breaks_every',
+                             'breaks_quickly',
+                             'broke_quickly',
+                             'broke_shortly'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     ,{
                     'syn0': [],
-                    'syn1': ['sound_quality', 'audio_quality'],
-                    'syn2': ['poor', 'bad'],
+                    'syn1': ['sound_quality',
+                             'audio_quality'],
+                    'syn2': ['poor',
+                             'bad'],
                     'nots': []
                     }
                     ,{
                     'syn0': [],
-                    'syn1': ['picture_quality', 'image_quality'],
-                    'syn2': ['poor', 'bad'],
+                    'syn1': ['picture_quality',
+                             'image_quality'],
+                    'syn2': ['poor',
+                             'bad'],
                     'nots': []
                     }
                     ,{
@@ -2271,9 +2475,14 @@ wsw3 =   {
                     }
                     # DISEÑO PRESENTA FALLOS
                     ,{
-                    'syn0': ['design_flaw', 'design_defect', 'design_weakness', 'flawed_design', 'poor_design'],
+                    'syn0': ['design_flaw',
+                             'design_defect',
+                             'design_weakness',
+                             'flawed_design',
+                             'poor_design'],
                     'syn1': ['serious_design'],
-                    'syn2': ['flaw', 'flaws'],
+                    'syn2': ['flaw',
+                             'flaws'],
                     'nots': []
                     }
                     ,{
@@ -2291,126 +2500,95 @@ wsw3 =   {
                     # TAMAÑO INADECUADO
                     ,{
                     'syn0': [],
-                    'syn1': ['fit', 'fits'],
-                    'syn2': ['not', 'no'],
+                    'syn1': ['fit',
+                             'fits'],
+                    'syn2': ['not',
+                             'no'],
                     'nots': []
                     },
                     {
                     'syn0': [],
-                    'syn1': ['big', 'small', 'long', 'short'],
-                    'syn2': ['too', 'not_enough', 'way_too'],
+                    'syn1': ['big',
+                             'small',
+                             'long',
+                             'short'],
+                    'syn2': ['too',
+                             'not_enough',
+                             'way_too'],
                     'nots': []
                     },
                     {
                     'syn0': [],
-                    'syn1': ['size', 'length'],
+                    'syn1': ['size',
+                             'length'],
                     'syn2': ['wrong'],
                     'nots': ['no']
                     },
                     {
-                    'syn0': ['too_short', 'too_long', 'not_fit', 'too_small', 'too_big', 'too_large'],
+                    'syn0': ['too_short',
+                             'too_long',
+                             'not_fit',
+                             'too_small',
+                             'too_big',
+                             'too_large'],
                     'syn1': ['long_enough'],
                     'syn2': ['not'],
-                    'nots': []
-                    }
-                    # BUENA CALIDAD DE PIEZAS MECÁNICAS Y COMPONENTES
-                    ,{
-                    'syn0': ['excellent_build', 'sturdy'],
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ,{
-                    'syn0': ['well_made', 'quite_good', 'well_designed', 'excellent_product', 'high_quality'],
-                    'syn1': ['build_quality', 'image_quality'],
-                    'syn2': ['good', 'nice', 'high'],
-                    'nots': []
-                    },
-                    {
-                    'syn0': ['excellent_product', 'excellent_quality', 'excellent_results', 'excellent_sound'],
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ,{
-                    'syn0': ['sounds_great'],
-                    'syn1': ['sound_quality', 'audio_quality'],
-                    'syn2': ['good', 'great', 'excellent'],
-                    'nots': ['not']
-                    }
-                    ,{
-                    'syn0': [],
-                    'syn1': ['picture_quality', 'image_quality'],
-                    'syn2': ['good', 'great', 'excellent'],
-                    'nots': ['not']
-                    }
-                    ,{
-                    'syn0': [],
-                    'syn1': ['battery_life'],
-                    'syn2': ['good', 'great', 'long', 'excellent'],
-                    'nots': ['not']
-                    }
-                    # BUEN ASPECTO
-                    ,{
-                    'syn0': ['nice_looking'],
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    # TAMAÑO ADECUADO
-                    ,{
-                    'syn0': ['fit_perfectly'],
-                    'syn1': ['fit', 'fits'],
-                    'syn2': ['good', 'perfectly', 'right'],
-                    'nots': ['expected', 'not']
-                    }
-                    ,{
-                    'syn0': ['perfect_size'],
-                    'syn1': ['size', 'length'],
-                    'syn2': ['perfect'],
                     'nots': []
                     }
                     ]
             }
         }               
-an3_fil, an3_agg = analize_wordset_not_so_naive_4(odf, wsw3, True)
+an2_neg_fil, an2_neg_agg = analize_wordset_not_so_naive_4(odf, wsw2_neg, True)
 
-wsw4 =  {
-            'name':'facilidad de uso o instalación'
+wsw3_pos =  {
+            'name':'(POS) Comodidad/Sencillez'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     # PUESTA EN FUNCIONAMIENTO SENCILLA O RÁPIDA
-                    
-                    #{
-                    #'syn0': ['easy_install', 'easy_installation', 'easy_setup', 'installed_easily', 'quick_installation', 'plug_play'],
-                    #'syn1': ['plug'],
-                    #'syn2': ['play'],
-                    #'nots': []
-                    ##'nots': ['not', 'no']
-                    #}
-                    #,{
-                    #'syn0': [],
-                    #'syn1': ['installation', 'install', 'setup', 'installed'],
-                    #'syn2': ['easy', 'fast', 'quick', 'easily', 'smooth', 'breeze'],
-                    #'nots': []
-                    ##'nots': ['not', 'no']
-                    #}
-                    #,{
-                    #'syn0': [],
-                    #'syn1': ['installed'],
-                    #'syn2': ['easily', 'quickly'],
-                    #'nots': []
-                    ##'nots': ['not', 'no']
-                    #}
                     {
-                    'syn0': busca_tokens(tokens, ['install', 'installation', 'installed', 'setup']),
-                    'syn1': [],
-                    'syn2': [],
+                    'syn0': ['easy_install',
+                             'easy_installation',
+                             'easy_setup',
+                             'installed_easily',
+                             'quick_installation',
+                             'plug_play'],
+                    'syn1': ['plug'],
+                    'syn2': ['play'],
                     'nots': []
+                    #'nots': ['not', 'no']
                     }
+                    ,{
+                    'syn0': [],
+                    'syn1': ['installation',
+                             'install',
+                             'setup',
+                             'installed'],
+                    'syn2': ['easy',
+                             'fast',
+                             'quick',
+                             'easily',
+                             'smooth',
+                             'breeze'],
+                    'nots': []
+                    #'nots': ['not', 'no']
+                    }
+                    ,{
+                    'syn0': [],
+                    'syn1': ['installed'],
+                    'syn2': ['easily',
+                             'quickly'],
+                    'nots': []
+                    #'nots': ['not', 'no']
+                    }
+                    #,{
+                    #'syn0': busca_tokens(tokens, ['install', 'installation', 'installed', 'setup']),
+                    #'syn1': [],
+                    #'syn2': [],
+                    #'nots': []
+                    #}
                     ,{
                     'syn0': ['plug_play'],
                     'syn1': ['plug'],
@@ -2433,6 +2611,64 @@ wsw4 =  {
                     'syn2': [],
                     'nots': []
                     }
+                    ]
+            }
+        }
+an3_pos_fil, an3_pos_agg = analize_wordset_not_so_naive_4(odf, wsw3_pos, True)
+
+wsw3_neg =  {
+            'name':'(NEG) Comodidad/Sencillez'
+            ,'wordset': 
+            {
+                'ands': [],
+                'ors' :
+                    [
+                    # PUESTA EN FUNCIONAMIENTO COMPLICADA O LENTA
+                    #{
+                    #'syn0': busca_tokens(tokens, ['install', 'installation', 'installed', 'setup']),
+                    #'syn1': [],
+                    #'syn2': [],
+                    #'nots': []
+                    #}
+                    {
+                    'syn0': [],
+                    'syn1': ['plug_play'],
+                    'syn2': ['no',
+                             'not'],
+                    'nots': []
+                    }
+                    # PROBLEMAS CON EL MANUAL DE INSTRUCCIONES
+                    ,{
+                    'syn0': ['indecipherable_instructions',
+                             'confusing_instructions',
+                             'unclear_instructions',
+                             'instructions_stink',
+                             'chinglish_instructions',
+                             'meager_instructions',
+                             'incomplete_instructions',
+                             'scant_instructions',
+                             'engrish_instructions',
+                             'clearer_instructions',
+                             'conflicting_instructions',
+                             'sparse_instructions',
+                             'skimpy_instructions',
+                             'cryptic_instructions',
+                             'inadequate_instructions',
+                             'vague_instructions',
+                             'no_instructions',
+                             'instructions_suck']
+                    ,'syn1': ['instructions']
+                    ,'syn2': ['understand',
+                              'unintelligible']
+                    ,'nots': []
+                    }
+                    ,{
+                    'syn0': ['poor_instruction',
+                             'cryptic_instruction'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
                     # PRODUCTO DE DIFÍCIL USO, INCÓMODOS O CON ELEMENTOS DESAGRADABLES
                     ,{
                     'syn0': [],
@@ -2447,7 +2683,10 @@ wsw4 =  {
                     'nots': []
                     }
                     ,{
-                    'syn0': ['tricky', 'figure_out', 'figured_out', 'figuring_out'],
+                    'syn0': ['tricky',
+                             'figure_out',
+                             'figured_out',
+                             'figuring_out'],
                     'syn1': ['trying'],
                     'syn2': ['work'],
                     'nots': []
@@ -2467,25 +2706,27 @@ wsw4 =  {
                     ]
             }
         }
-an4_fil, an4_agg = analize_wordset_not_so_naive_4(odf, wsw4, True)
+an3_neg_fil, an3_neg_agg = analize_wordset_not_so_naive_4(odf, wsw3_neg, True)
 
-wsw5 =  {
-            'name':'expectativas vs realidad'
+
+wsw4_neg =  {
+            'name':'(NEG) Producto incorrecto'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     # GENÉRICO. SE MENCIONA LA DESCRIPCION
-                    {
-                    'syn0': busca_tokens(tokens, ['description']),
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
+                    #{
+                    #'syn0': busca_tokens(tokens, ['description']),
+                    #'syn1': [],
+                    #'syn2': [],
+                    #'nots': []
+                    #}
                     # SE ENVÍA UN PRODUCTO EQUIVOCADO
-                    ,{
-                    'syn0': ['specifically_ordered', 'shipped_wrong'],
+                    {
+                    'syn0': ['specifically_ordered',
+                             'shipped_wrong'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2503,44 +2744,64 @@ wsw5 =  {
                     'syn2': ['advertised'],
                     'nots': []
                     }
-                    #,{
-                    #'syn0': [],
-                    #'syn1': ['description'],
-                    #'syn2': ['incorrect'],
-                    #'nots': []
-                    #}
-                    #,{
-                    #'syn0': ['description_said'],
-                    #'syn1': ['description'],
-                    #'syn2': ['say', 'says'],
-                    #'nots': []
-                    #}
-                    #,{
-                    #'syn0': [],
-                    #'syn1': ['description'],
-                    #'syn2': ['misleading', 'misled'],
-                    #'nots': []
-                    #}
                     ,{
-                    'syn0': [],
-                    'syn1': ['totally_different', 'entirely_different'],
-                    'syn2': ['recieved', 'described', 'pictured', 'ordered'],
+                    'syn0': ['description_implied',
+                             'description_incorrect',
+                             'description_misleads',
+                             'description_neglects',
+                             'description_lies',
+                             'description_boasts',
+                             'description_incomplete',
+                             'deceptive_description',
+                             'description_states',
+                             'description_indicates',
+                             'inaccurate_description',
+                             'false_description',
+                             'description_stating',
+                             'description_suggests',
+                             'incomplete_description',
+                             'description_claims',
+                             'description_inaccurate',
+                             'description_implies',
+                             'improper_description',
+                             'wrong_description',
+                             'phony_description',
+                             'description_omits',
+                             'description_specifies',
+                             'description_indicated',
+                             'description_emphasizes',
+                             'description_said',
+                             'misleading_description',
+                             'description_lists',
+                             'description_stated',
+                             'incorrect_description'],
+                    'syn1': ['description'],
+                    'syn2': ['incorrect'],
                     'nots': []
                     }
                     ,{
                     'syn0': [],
-                    'syn1': ['pictured', 'advertised', 'described'],
+                    'syn1': ['totally_different',
+                             'entirely_different'],
+                    'syn2': ['recieved',
+                             'described',
+                             'pictured',
+                             'ordered'],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': [],
+                    'syn1': ['pictured',
+                             'advertised',
+                             'described'],
                     'syn2': ['not'],
                     'nots': []
                     }
-                    #,{
-                    #'syn0': ['description_states'],
-                    #'syn1': ['picture'],
-                    #'syn2': ['shows'],
-                    #'nots': []
-                    #}
                     ,{
-                    'syn0': ['meet_expectation', 'meet_expectations', 'meeting_expectations', 'meets_expectations'],
+                    'syn0': ['meet_expectation',
+                             'meet_expectations',
+                             'meeting_expectations',
+                             'meets_expectations'],
                     'syn1': [],
                     'syn2': [],
                     'nots': ['not']
@@ -2548,10 +2809,10 @@ wsw5 =  {
                     ]
             }
         }
-an5_fil, an5_agg = analize_wordset_not_so_naive_4(odf, wsw5, True)
+an4_neg_fil, an4_neg_agg = analize_wordset_not_so_naive_4(odf, wsw4_neg, True)
 
-wsw6 =  {
-            'name':'referencia a opiniones'
+wsw5_neu =  {
+            'name':'(NEU) Referencia a opiniones'
             ,'wordset': 
             {
                 'ands': [],
@@ -2584,80 +2845,80 @@ wsw6 =  {
                     ]
             }
         }   
-an6_fil, an6_agg = analize_wordset_not_so_naive_4(odf, wsw6, True)
+an5_neu_fil, an5_neu_agg = analize_wordset_not_so_naive_4(odf, wsw5_neu, True)
 
-wsw7 =  {
-            'name':'experiencia de envío/entrega/packaging'
+wsw6_pos =  {
+            'name':'(POS) Envío/entrega/packaging'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
-                    # GENÉRICO DE ENVÍO
+                    # PAQUETE Y PACKAGING
                     {
-                    'syn0': [],
-                    'syn1': ['shipment_arrived'],
-                    #'syn2': ['excellent_condition'],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    # PAQUETE RECIBIDO EN MALAS CONDICIONES
-                    ,{
-                    'syn0': ['shipping_damage'],
-                    'syn1': ['broken', 'damaged'],
-                    'syn2': ['box', 'package'],
-                    'nots': []
-                    }
-                    #,{
-                    #'syn0': ['poor_packaging'],
-                    #'syn1': ['package', 'package_arrived'],
-                    #'syn2': ['unharmed'],
-                    #'nots': []
-                    #},
-                    ,{
-                    'syn0': [],
-                    'syn1': ['package', 'box'],
-                    'syn2': ['missing'],
-                    'nots': []
-                    }
-                    # GENÉRICO DE PAQUETE Y PACKAGING
-                    ,{
-                    'syn0': busca_tokens(tokens, ['packaging']),
+                    'syn0': ['fancy_packaging',
+                             'glitzy_packaging',
+                             'sealed_packaging',
+                             'recyclable_packaging',
+                             'free_packaging'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     ,{
-                    'syn0': busca_tokens(tokens, ['packed']),
+                    'syn0': ['nicely_packed',
+                             'blister_packed',
+                             'securely_packed',
+                             'packed_nicely',
+                             'neatly_packed',
+                             'safely_packed'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     ,
                     {
-                    'syn0': [],
-                    'syn1': busca_tokens(tokens, ['package']),
-                    #'syn2': ['seal', 'unsealed', 'factory_sealed'],
+                    'syn0': ['sealed_package',
+                             'tidy_package'],
+                    'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     # ENVÍO RÁPIDO
                     ,{
-                    'syn0': ['timely_shipping', 'speedy_shipping', 'overnight_shipping', 'ships_quickly', 'shipped_fast', 'shipped_quickly', 'shipped_promptly'],
-                    'syn1': ['shipping', 'delivery'],
-                    'syn2': ['fast', 'quick', 'good'],
+                    'syn0': ['timely_shipping',
+                             'speedy_shipping',
+                             'overnight_shipping',
+                             'ships_quickly',
+                             'shipped_fast',
+                             'shipped_quickly',
+                             'shipped_promptly'],
+                    'syn1': ['shipping',
+                             'delivery'],
+                    'syn2': ['fast',
+                             'quick',
+                             'good'],
                     'nots': []
                     }
                     ,{
-                    'syn0': ['shipped_immediately', 'fast_delivery', 'fast_service', 'fast_ship', 'fast_shipping', 'quick_delivery'],
+                    'syn0': ['shipped_immediately',
+                             'fast_delivery',
+                             'fast_service',
+                             'fast_ship',
+                             'fast_shipping',
+                             'quick_delivery'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
                     }
                     ,{
-                    'syn0': ['arrived_timely', 'arrived_earlier', 'arrived_sooner', 'arrived_promptly'],
+                    'syn0': ['arrived_timely',
+                             'arrived_earlier',
+                             'arrived_sooner',
+                             'arrived_promptly'],
                     'syn1': ['arrived'],
-                    'syn2': ['fast', 'quickly'],
+                    'syn2': ['fast',
+                             'quickly'],
                     'nots': []
                     }
                     ,{
@@ -2666,27 +2927,91 @@ wsw7 =  {
                     'syn2': ['short_time'],
                     'nots': []
                     }
+                    ]
+            }
+        }
+an6_pos_fil, an6_pos_agg = analize_wordset_not_so_naive_4(odf, wsw6_pos, True)
+
+wsw6_neg =  {
+            'name':'(NEG) Envío/entrega/packaging'
+            ,'wordset': 
+            {
+                'ands': [],
+                'ors' :
+                    [
+                    # PAQUETE RECIBIDO EN MALAS CONDICIONES
+                    {
+                    'syn0': ['shipping_damage'],
+                    'syn1': ['broken',
+                             'damaged'],
+                    'syn2': ['box',
+                             'package'],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': [],
+                    'syn1': ['package',
+                             'box'],
+                    'syn2': ['missing'],
+                    'nots': []
+                    }
+                    # GENÉRICO DE PAQUETE Y PACKAGING
+                    ,{
+                    'syn0': ['excessive_packaging',
+                             'stupid_packaging',
+                             'poor_packaging',
+                             'lousy_packaging',
+                             'wasteful_packaging'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['densely_packed',
+                             'jam_packed',
+                             'poorly_packed',
+                             'improperly_packed',
+                             'packed_tightly',
+                             'loosely_packed',
+                             'tightly_packed'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,
+                    {
+                    'syn0': ['incomplete_package'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
                     # ENVÍO LENTO
                     ,{
                     'syn0': [],
-                    'syn1': ['shipping', 'delivery'],
+                    'syn1': ['shipping',
+                             'delivery'],
                     'syn2': ['slow'],
                     'nots': []
                     }
                     ]
             }
         }
-an7_fil, an7_agg = analize_wordset_not_so_naive_4(odf, wsw7, True)
+an6_neg_fil, an6_neg_agg = analize_wordset_not_so_naive_4(odf, wsw6_neg, True)
 
-wsw8 =  {
-            'name':'experiencia en devolución/postventa'
+wsw7_neu =  {
+            'name':'(NEU) Devolución/Postventa'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     {
-                    'syn0': ['help_desk', 'customer_support', 'customer_service', 'tech_support', 'call_customer', 'called_customer'],
+                    'syn0': ['help_desk',
+                             'customer_support',
+                             'customer_service',
+                             'tech_support',
+                             'call_customer',
+                             'called_customer'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2710,7 +3035,10 @@ wsw8 =  {
                     'nots': []
                     }
                     ,{
-                    'syn0': ['sent_back', 'send_back', 'sending_back', 'ship_back'],
+                    'syn0': ['sent_back',
+                             'send_back',
+                             'sending_back',
+                             'ship_back'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -2718,22 +3046,15 @@ wsw8 =  {
                     ]
             }
         }
-an8_fil, an8_agg = analize_wordset_not_so_naive_4(odf, wsw8, True)
+an7_neu_fil, an7_neu_agg = analize_wordset_not_so_naive_4(odf, wsw7_neu, True)
 
-wsw9 =  {
-            'name':'se menciona el precio'
+wsw8_neu =  {
+            'name':'(NEU) Precio'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
-                    #{
-                    #'syn0': busca_tokens(tokens, ['money']),
-                    #'syn1': [],
-                    #'syn2': [],
-                    #'nots': []
-                    #}
-                    #,
                     {
                     'syn0': busca_tokens(tokens, ['price']),
                     'syn1': [],
@@ -2773,10 +3094,10 @@ wsw9 =  {
                     ]
             }
         }
-an9_fil, an9_agg = analize_wordset_not_so_naive_4(odf, wsw9, True)
+an8_neu_fil, an8_neu_agg = analize_wordset_not_so_naive_4(odf, wsw8_neu, True)
 
-wsw10 = {
-            'name':'sentimiento negativo'
+wsw9_neg = {
+            'name':'(NEG) Sentimiento'
             ,'wordset': 
             {
                 'ands': [],
@@ -2791,11 +3112,11 @@ wsw10 = {
                     ]
             }
         }
-an10_fil, an10_agg = analize_wordset_not_so_naive_4(odf, wsw10, show=True)
+an9_neg_fil, an9_neg_agg = analize_wordset_not_so_naive_4(odf, wsw9_neg, show=True)
     
 
-wsw11 = {
-            'name':'sentimiento positivo'
+wsw9_pos = {
+            'name':'(POS) Sentimiento'
             ,'wordset': 
             {
                 'ands': [],
@@ -2832,50 +3153,47 @@ wsw11 = {
                     'nots': []
                     }
                     ,{
-                    'syn0': busca_tokens(tokens, ['exceeds']),
+                    'syn0': ['exceeds_expectations', 'greatly_exceeds', 'exceeds_expectation', 'far_exceeds'],
                     'syn1': ['pleasantly_surprised'],
                     'syn2': [],
                     'nots': []
                     }
                     ,{
-                    'syn0': ['than_expected'],
-                    'syn1': [],
-                    'syn2': [],
+                    'syn0': [],
+                    'syn1': ['than_expected'],
+                    'syn2': ['much_better', 'much', 'better'],
                     'nots': []
                     }
                     ]
             }
         }
-an11_fil, an11_agg = analize_wordset_not_so_naive_4(odf, wsw11, show=True)
-      
+an9_pos_fil, an9_pos_agg = analize_wordset_not_so_naive_4(odf, wsw9_pos, show=True)
 
 
 # BUSCAR RELACIONES ENTRE DOCUMENTOS RETORNADOS POR VARIOS WORDSETS
 lista_resultados_busquedas = []
-lista_resultados_busquedas.append({'name':wsw1['name'], 'resultados': an1_fil})
-lista_resultados_busquedas.append({'name':wsw2['name'], 'resultados': an2_fil})
-lista_resultados_busquedas.append({'name':wsw3['name'], 'resultados': an3_fil})
-lista_resultados_busquedas.append({'name':wsw4['name'], 'resultados': an4_fil})
-lista_resultados_busquedas.append({'name':wsw5['name'], 'resultados': an5_fil})
-lista_resultados_busquedas.append({'name':wsw6['name'], 'resultados': an6_fil})
-lista_resultados_busquedas.append({'name':wsw7['name'], 'resultados': an7_fil})
-lista_resultados_busquedas.append({'name':wsw8['name'], 'resultados': an8_fil})
-lista_resultados_busquedas.append({'name':wsw9['name'], 'resultados': an9_fil})
-lista_resultados_busquedas.append({'name':wsw10['name'], 'resultados': an10_fil})
-lista_resultados_busquedas.append({'name':wsw11['name'], 'resultados': an11_fil})
-#lista_resultados_busquedas.append({'name':wsw12['name'], 'resultados': an12_fil})
-#lista_resultados_busquedas.append({'name':wsw13['name'], 'resultados': an13_fil})
-#lista_resultados_busquedas.append({'name':wsw14['name'], 'resultados': an14_fil})
+lista_resultados_busquedas.append({'name':wsw1_pos['name'], 'resultados': an1_pos_fil, 'agregados': an1_pos_agg})
+lista_resultados_busquedas.append({'name':wsw1_neg['name'], 'resultados': an1_neg_fil, 'agregados': an1_neg_agg})
+lista_resultados_busquedas.append({'name':wsw2_pos['name'], 'resultados': an2_pos_fil, 'agregados': an2_pos_agg})
+lista_resultados_busquedas.append({'name':wsw2_neg['name'], 'resultados': an2_neg_fil, 'agregados': an2_neg_agg})
+lista_resultados_busquedas.append({'name':wsw3_pos['name'], 'resultados': an3_pos_fil, 'agregados': an3_pos_agg})
+lista_resultados_busquedas.append({'name':wsw3_neg['name'], 'resultados': an3_neg_fil, 'agregados': an3_neg_agg})
+lista_resultados_busquedas.append({'name':wsw4_neg['name'], 'resultados': an4_neg_fil, 'agregados': an4_neg_agg})
+lista_resultados_busquedas.append({'name':wsw5_neu['name'], 'resultados': an5_neu_fil, 'agregados': an5_neu_agg})
+lista_resultados_busquedas.append({'name':wsw6_pos['name'], 'resultados': an6_pos_fil, 'agregados': an6_pos_agg})
+lista_resultados_busquedas.append({'name':wsw6_neg['name'], 'resultados': an6_neg_fil, 'agregados': an6_neg_agg})
+lista_resultados_busquedas.append({'name':wsw7_neu['name'], 'resultados': an7_neu_fil, 'agregados': an7_neu_agg})
+lista_resultados_busquedas.append({'name':wsw8_neu['name'], 'resultados': an8_neu_fil, 'agregados': an8_neu_agg})
+lista_resultados_busquedas.append({'name':wsw9_pos['name'], 'resultados': an9_pos_fil, 'agregados': an9_pos_agg})
+lista_resultados_busquedas.append({'name':wsw9_neg['name'], 'resultados': an9_neg_fil, 'agregados': an9_neg_agg})
 
-
-# CON ESTO CONSTRUIMOS LA MATRIZ DE TEMAS Y LA VISUALIZACIÓN DE LA RED
 mat_doc_ws, mat_doc_ws_agg = analize_wordset_occurrences(odf, lista_resultados_busquedas)
 
 
 
 visualize_wordsets_network(mat_doc_ws, ratings='F')
 visualize_wordsets_network_4(mat_doc_ws, group_size=1, k=0.01, ratings='F')
-visualize_wordsets_network_6(mat_doc_ws, group_size=100, k=0.3, ratings='F')
+visualize_wordsets_network_6(mat_doc_ws, group_size=1000, k=0.3, ratings='F')
 
 df_sharing = get_sharing_matrix(mat_doc_ws)
 
@@ -2883,7 +3201,28 @@ print_topic_heatmaps(mat_doc_ws)
 print_rating_heatmaps(mat_doc_ws)
 
 get_popular_topic_combinations(mat_doc_ws_agg, get_wordsets_names(mat_doc_ws))
-print_statistics_by_topic_heatmap(mat_doc_ws)
+print_statistics_by_topic_heatmap_rating_value(mat_doc_ws)
+print_statistics_by_topic_heatmap_rating_sd(mat_doc_ws)
+
+
+
+
+
+
+
+lineas = []
+for each in lista_resultados_busquedas:
+    slope, intercept, r_value, p_value, std_err = stats.linregress(each['agregados'].index.values, each['agregados']['doc_number'])
+    lineas.append({'tema':each['name'], 'slope':slope, 'intercept':intercept, 'rvalue':r_value, 'pvalue':p_value, 'std_err':std_err})
+
+respuesta_comprador = pd.DataFrame.from_dict(lineas)
+respuesta_comprador['slope_mod'] = respuesta_comprador['slope']/statistics_by_topic(mat_doc_ws)['1_size']
+
+
+
+
+
+
 
 
 
