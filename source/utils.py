@@ -16,6 +16,8 @@ import nltk
 import networkx as nx
 import seaborn as sns
 import random
+from scipy import stats
+from sklearn.linear_model import LinearRegression
 #import math as math
 '''
 nltk.download('punkt')
@@ -207,6 +209,12 @@ def perform_eda(raw_data, analysis):
         
     elif analysis == 'rating_distribution':
         this_data = raw_data.groupby('rating').agg({'summary':np.size}).rename(columns={'summary':'total_docs'})['total_docs']
+        print_simple_histogram(data_agg=this_data)
+        
+    elif analysis == 'rating_distribution_item':
+        d = round(raw_data.groupby('item_id').agg({'rating':np.median}))
+        d['item_id'] = d.index.values
+        this_data = d.groupby('rating').count()['item_id']
         print_simple_histogram(data_agg=this_data)
         
     elif analysis == 'summary_review_length_comparison_per_rating':
@@ -1368,26 +1376,31 @@ def generate_bow_not_so_naive_main(odf_filtered, wsw, stopwords, show=False):
     return {'F':bowF, '1':bow1, '2':bow2, '3':bow3, '4':bow4, '5':bow5}
 ########################################################################################################################
 def analize_wordset_occurrences(df, lista_resultados_analize):
+    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN ANALIZE_WORDSET_OCCURRENCES', timestamps=[])
     matriz_documento_wordset = pd.DataFrame(index=df.index)
     for resultado_busqueda in lista_resultados_analize:
         nombre = resultado_busqueda['name']
+        timestamps = calcula_y_muestra_tiempos('SE PROCEDE A ANALIZAR EL WORDSET ' + nombre, timestamps=timestamps)
         matriz_documento_wordset[nombre] = 0
+        i = 0
         for doc_number in resultado_busqueda['resultados']['doc_number']:
             matriz_documento_wordset[nombre][doc_number] = 1
+            if i%20000 == 0:
+                timestamps = calcula_y_muestra_tiempos('BUCLE: i='+str(i)+' de '+str(len(resultado_busqueda['resultados']['doc_number'])), timestamps)
+            i += 1
     matriz_documento_wordset['total_wordsets'] = matriz_documento_wordset.sum(axis=1)
-    ratio_ocupacion_total = matriz_documento_wordset.sum().sum()/(matriz_documento_wordset.size-len(matriz_documento_wordset))
-    ratio_ocupacion = np.count_nonzero(matriz_documento_wordset['total_wordsets'])/len(matriz_documento_wordset)
     matriz_documento_wordset_agg = matriz_documento_wordset.groupby('total_wordsets').count()[matriz_documento_wordset.groupby('total_wordsets').count().columns[0]].to_frame()
     matriz_documento_wordset_agg.columns.values[0] = 'total_documents'
-    print_simple_histogram(matriz_documento_wordset_agg['total_documents'], title = '# de opiniones por hits')
-    print ('La ocupación parcial es del', "{:.0%}".format(ratio_ocupacion))
-    print ('La ocupación total es del', "{:.0%}".format(ratio_ocupacion_total))
+    print_simple_histogram(matriz_documento_wordset_agg['total_documents'], title = '# de opiniones por # de hits')
+    print ('La ocupación parcial es del', "{:.0%}".format(np.count_nonzero(matriz_documento_wordset['total_wordsets'])/len(matriz_documento_wordset)))
+    print ('La ocupación total es del', "{:.0%}".format(matriz_documento_wordset.sum().sum()/(matriz_documento_wordset.size-len(matriz_documento_wordset))))
     
     mat_doc_ws_expanded = pd.merge(matriz_documento_wordset, df['rating'], left_index=True, right_index=True, how='inner')
     wordsets_names = list(matriz_documento_wordset.columns)
     wordsets_names.remove('total_wordsets')
     mat_doc_ws_expanded_agg = mat_doc_ws_expanded.groupby(wordsets_names).agg({'total_wordsets':[np.size, np.mean], 'rating':[np.median, np.mean, np.std]})
     mat_doc_ws_expanded_agg.columns = ['total_opiniones', 'total_temas', 'rating_median', 'rating_mean', 'rating_sd']
+    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET_OCCURRENCES', timestamps=timestamps)
 
     return mat_doc_ws_expanded, mat_doc_ws_expanded_agg
 ########################################################################################################################
@@ -1428,7 +1441,7 @@ def get_stopwords(modo='pre'):
     stop_words.extend(['one', 'get', 'got', 'getting', 'shoud', 'like', 'also', 'would', 'even', 'could', 'two', 'item', 'thing', 'put', 'however',
                        'something', 'etc', 'unless', 'https', 'www', 'for'])
     if modo=='pre':
-        palabras_deseadas = ['too', 'not', 'no', 'than', 'out']
+        palabras_deseadas = ['too', 'not', 'no', 'nor', 'than', 'out']
         for palabra in palabras_deseadas:
             stop_words.remove(palabra)
     return stop_words
@@ -1494,11 +1507,13 @@ def get_close_words(df, max_distance, word, n_words):
     return palabras_antes_final, palabras_despues_final
 ########################################################################################################################
 def get_close_words_2(df, word, max_distance=3, n_words=8):
+    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN GET_CLOSE_WORDS', timestamps=[])
     palabras_antes = []
     palabras_despues  = []
     ratings_antes = []
     ratings_despues = []
     
+    i = 0
     for opinion in df.iterrows():
         texto = opinion[1]['text'].split(', ')
         if word in set(texto):
@@ -1511,7 +1526,9 @@ def get_close_words_2(df, word, max_distance=3, n_words=8):
                 texto_antes = texto[indice-max_distance:indice]
                 palabras_antes.extend(texto_antes)
                 ratings_antes.extend(len(texto_antes)*[opinion[1]['rating']])
-
+        if i%50000 == 0:
+            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: i='+str(i)+' DE '+str(len(df)), timestamps=timestamps)
+        i += 1
 
     df_antes = pd.DataFrame(list(zip(palabras_antes, ratings_antes)), columns = ['token', 'rating'])
     df_antes = df_antes.groupby('token').agg({'rating':[np.size, np.mean, np.std]}).fillna(0)
@@ -1524,7 +1541,9 @@ def get_close_words_2(df, word, max_distance=3, n_words=8):
     df_despues = df_despues.drop(remove_stopwords_from_bow_2(df_despues, 'post'))
     df_despues.columns = ['num_occurrences', 'rating_mean', 'rating_sd']
     df_despues = df_despues.sort_values(by=['num_occurrences'], ascending=False)
-
+    
+    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GET_CLOSE_WORDS', timestamps=timestamps)
+    
     return df_antes.iloc[:n_words], df_despues.iloc[:n_words]
 ########################################################################################################################
 def visualize_wordsets_network(matriz_doc_ws_expanded, ratings='F'):
@@ -1992,7 +2011,7 @@ def print_rating_heatmaps(mat_doc_ws):
     sns.heatmap(heatmap_n2.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
     #sns.heatmap(heatmap.transpose(), cmap=get_heatmap_cmap())
 ########################################################################################################################
-def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names):
+def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names, n_temas=10):
     lista_combinaciones_populares = []
     for row in mat_doc_ws_agg[mat_doc_ws_agg['total_temas'] > 1].iterrows():
         combinacion = []
@@ -2007,9 +2026,9 @@ def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names):
     
     
     df_t = pd.DataFrame(lista_combinaciones_populares).sort_values(by=0, ascending=False)
-    return df_t.iloc[:10]
+    return df_t.iloc[:n_temas]
 ########################################################################################################################
-def statistics_by_topic(mat_doc_ws):
+'''def statistics_by_topic(mat_doc_ws):
     dic = []
     for tema in get_wordsets_names(mat_doc_ws):
         mat = mat_doc_ws[get_extended_wordsets_names(mat_doc_ws)].groupby(tema).agg({'rating':[np.mean, np.std]}).transpose()
@@ -2023,13 +2042,48 @@ def statistics_by_topic(mat_doc_ws):
         mat = {'tema':tema, '1_mean':mat['1_mean'][0], '1_sd':mat['1_sd'][0], '0_mean':mat['0_mean'][0], '0_sd':mat['0_sd'][0]}
         dic.append(mat)
     df_temas = pd.DataFrame.from_dict(dic)
+    return df_temas'''
+########################################################################################################################
+def statistics_by_topic(mat_doc_ws):
+    dic = []
+    for tema in get_wordsets_names(mat_doc_ws):
+        mat = mat_doc_ws[get_extended_wordsets_names(mat_doc_ws)].groupby(tema).agg({'rating':[np.size, np.mean, np.std]}).transpose()
+        mat['0_size'] = int(mat.iloc[0][0])
+        mat['0_mean'] = mat.iloc[1][0]
+        mat['0_sd'] = mat.iloc[2][0]
+        mat['1_size'] = int(mat.iloc[0][1])
+        mat['1_mean'] = mat.iloc[1][1]
+        mat['1_sd'] = mat.iloc[2][1]
+        mat.drop([0, 1], axis=1, inplace=True)
+        mat.drop(mat.index[1], inplace=True)
+        mat.drop(mat.index[1], inplace=True)
+        mat.set_index(pd.Series([tema]), inplace=True)
+        mat = {'tema':tema, '1_size':mat['1_size'][0], '1_mean':mat['1_mean'][0], '1_sd':mat['1_sd'][0], '0_size':mat['0_size'][0], '0_mean':mat['0_mean'][0], '0_sd':mat['0_sd'][0]}
+        dic.append(mat)
+    df_temas = pd.DataFrame.from_dict(dic)
+    #df_temas.index = get_wordsets_names(mat_doc_ws)
     return df_temas
 ########################################################################################################################
-def print_statistics_by_topic_heatmap(mat_doc_ws):
+def print_statistics_by_topic_heatmap_rating_value(mat_doc_ws):
     heatmap = statistics_by_topic(mat_doc_ws)
     heatmap.index=heatmap['tema']
-    heatmap.drop(['tema', '0_sd', '1_sd'], axis=1, inplace=True)
+    heatmap.drop(['tema', '0_size', '1_size', '0_sd', '1_sd'], axis=1, inplace=True)
     heatmap = heatmap.rename(columns={'0_mean':'No Hit', '1_mean':'Hit'})
     sns.heatmap(heatmap, cmap=get_heatmap_cmap(False)) # LEER EN VERTICAL
 ########################################################################################################################
-    
+def print_statistics_by_topic_heatmap_rating_sd(mat_doc_ws):
+    heatmap = statistics_by_topic(mat_doc_ws)
+    heatmap.index=heatmap['tema']
+    heatmap.drop(['tema', '0_size', '1_size', '0_mean', '1_mean'], axis=1, inplace=True)
+    heatmap = heatmap.rename(columns={'0_sd':'No Hit', '1_sd':'Hit'})
+    sns.heatmap(heatmap, cmap=get_heatmap_cmap()) # LEER EN VERTICAL
+########################################################################################################################
+def get_respuesta_comprador(lista_resultados_analize, matriz_doc_ws):
+    lineas = []
+    for each in lista_resultados_analize:
+        lineas.append({'tema':each['name'], 'slope':round(LinearRegression().fit(each['agregados'].index.values.reshape((-1, 1)), each['agregados']['doc_number']).coef_[0], 1)})
+    respuesta_comprador = pd.DataFrame.from_dict(lineas)
+    respuesta_comprador['slope_mod'] = round(respuesta_comprador['slope']/statistics_by_topic(matriz_doc_ws)['1_size'], 3)
+    respuesta_comprador.sort_values(by='slope_mod', ascending=False, inplace=True)
+    return respuesta_comprador
+########################################################################################################################
