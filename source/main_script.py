@@ -1023,7 +1023,7 @@ def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
             rows.append({'doc_number': opinion[1]['doc_number']})
             j += 1
     ##################################################_C_O_R_E_########################################
-        if i % 50000 == 0:
+        if i % 100000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: NUM_DOCUMENTO='+str(i)+' DE '+str(len(df))+' HITS: '+str(j), timestamps)
         i += 1
     timestamps = calcula_y_muestra_tiempos('FINALIZA EL BUCLE DE OPINIONES', timestamps)
@@ -1957,7 +1957,7 @@ def busca_tokens(bow, words):
         for elemento in set(bow['bigram']): # como set el rendimiento mejora espectacularmente
             if elemento.split('_').count(word):
                 tokens_a_retornar.append(elemento)
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GENERATE_BOW', timestamps)
+    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN BUSCA_TOKENS', timestamps)
     return tokens_a_retornar
 ########################################################################################################################
 def get_heatmap_cmap(grey_shades=True):
@@ -1988,11 +1988,13 @@ def get_sharing_matrix(mat_doc_ws):
     for tema in wordsets_names:
         df[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()
     
+    df2 = df.copy()
     for i in range(0, len(wordsets_names)):
-        for j in range(i, len(wordsets_names)):
-            df.iloc[i][j] = 0 #df.iloc[j][i]
+        #for j in range(i, len(wordsets_names)):
+            #df.iloc[i][j] = 0 #df.iloc[j][i]
+        df2.iloc[i][i] = 0
     
-    sns.heatmap(df, cmap=get_heatmap_cmap())
+    sns.heatmap(df2, cmap=get_heatmap_cmap())
     return df
 ########################################################################################################################
 def calculate_heatmap_matrix(mat_doc_ws):
@@ -2138,7 +2140,7 @@ odf = load_latest_odf(nrows=1532805, is_false=True)
 
 
 
-
+odf = odf_17525
 
 
 
@@ -2146,7 +2148,7 @@ tokens = generate_bow(odf, False, show=False)
 bigrams = extract_bigrams_from_bow(tokens)
 
 wsw1_pos =   {
-            'name':'(POS) Buen Funcionamiento'
+            'name':'Funcionamiento (POS)'
             ,'wordset': 
             {
                 'ands': [],
@@ -2194,7 +2196,7 @@ wsw1_pos =   {
 an1_pos_fil, an1_pos_agg = analize_wordset_not_so_naive_4(odf, wsw1_pos, True)
 
 wsw1_neg =   {
-            'name':'(NEG) Mal Funcionamiento'
+            'name':'Funcionamiento (NEG)'
             ,'wordset': 
             {
                 'ands': [],
@@ -2294,7 +2296,7 @@ wsw1_neg =   {
 an1_neg_fil, an1_neg_agg = analize_wordset_not_so_naive_4(odf, wsw1_neg, True)
 
 wsw2_pos =   {
-            'name':'(POS) Características'
+            'name':'Características (POS)'
             ,'wordset': 
             {
                 'ands': [],
@@ -2394,7 +2396,7 @@ wsw2_pos =   {
 an2_pos_fil, an2_pos_agg = analize_wordset_not_so_naive_4(odf, wsw2_pos, True)
 
 wsw2_neg =   {
-            'name':'(NEG) Características'
+            'name':'Características (NEG)'
             ,'wordset': 
             {
                 'ands': [],
@@ -2554,7 +2556,7 @@ wsw2_neg =   {
 an2_neg_fil, an2_neg_agg = analize_wordset_not_so_naive_4(odf, wsw2_neg, True)
 
 wsw3_pos =  {
-            'name':'(POS) Comodidad/Sencillez'
+            'name':'Comodidad/Sencillez (POS)'
             ,'wordset': 
             {
                 'ands': [],
@@ -2630,7 +2632,7 @@ wsw3_pos =  {
 an3_pos_fil, an3_pos_agg = analize_wordset_not_so_naive_4(odf, wsw3_pos, True)
 
 wsw3_neg =  {
-            'name':'(NEG) Comodidad/Sencillez'
+            'name':'Comodidad/Sencillez (NEG)'
             ,'wordset': 
             {
                 'ands': [],
@@ -2722,8 +2724,8 @@ wsw3_neg =  {
 an3_neg_fil, an3_neg_agg = analize_wordset_not_so_naive_4(odf, wsw3_neg, True)
 
 
-wsw4_neg =  {
-            'name':'(NEG) Producto incorrecto'
+wsw4 =  {
+            'name':'Producto incorrecto'
             ,'wordset': 
             {
                 'ands': [],
@@ -2822,10 +2824,10 @@ wsw4_neg =  {
                     ]
             }
         }
-an4_neg_fil, an4_neg_agg = analize_wordset_not_so_naive_4(odf, wsw4_neg, True)
+an4_fil, an4_agg = analize_wordset_not_so_naive_4(odf, wsw4, True)
 
-wsw5_neu =  {
-            'name':'(NEU) Referencia a opiniones'
+wsw5 =  {
+            'name':'Referencia a opiniones'
             ,'wordset': 
             {
                 'ands': [],
@@ -2858,10 +2860,10 @@ wsw5_neu =  {
                     ]
             }
         }   
-an5_neu_fil, an5_neu_agg = analize_wordset_not_so_naive_4(odf, wsw5_neu, True)
+an5_fil, an5_agg = analize_wordset_not_so_naive_4(odf, wsw5, True)
 
 wsw6_pos =  {
-            'name':'(POS) Envío/entrega/packaging'
+            'name':'Envío/entrega/packaging (POS)'
             ,'wordset': 
             {
                 'ands': [],
@@ -2946,7 +2948,7 @@ wsw6_pos =  {
 an6_pos_fil, an6_pos_agg = analize_wordset_not_so_naive_4(odf, wsw6_pos, True)
 
 wsw6_neg =  {
-            'name':'(NEG) Envío/entrega/packaging'
+            'name':'Envío/entrega/packaging (NEG)'
             ,'wordset': 
             {
                 'ands': [],
@@ -3011,58 +3013,85 @@ wsw6_neg =  {
         }
 an6_neg_fil, an6_neg_agg = analize_wordset_not_so_naive_4(odf, wsw6_neg, True)
 
-wsw7_neu =  {
-            'name':'(NEU) Devolución/Postventa'
+
+get_close_words_2(odf, 'warranty_repair')
+busca_tokens(tokens, ['for'])
+
+
+
+
+wsw7_pos =  {
+            'name':'Devolución/Postventa (POS)'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     {
-                    'syn0': ['help_desk',
+                    'syn0': [],
+                    'syn1': ['help_desk',
                              'customer_support',
                              'customer_service',
                              'tech_support',
                              'call_customer',
                              'called_customer'],
-                    'syn1': [],
-                    'syn2': [],
+                    'syn2': ['great',
+                             'good',
+                             'excellent'
+                             'helpful'],
                     'nots': []
                     }
                     ,{
-                    'syn0': busca_tokens(tokens, ['warranty']),
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ,{
-                    'syn0': busca_tokens(tokens, ['return']),
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ,{
-                    'syn0': busca_tokens(tokens, ['returning']),
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': []
-                    }
-                    ,{
-                    'syn0': ['sent_back',
-                             'send_back',
-                             'sending_back',
-                             'ship_back'],
-                    'syn1': [],
-                    'syn2': [],
+                    'syn0': [],
+                    'syn1': ['warranty_service',
+                             'manufacturer_warranty',
+                             'warranty'],
+                    'syn2': ['great',
+                             'good',
+                             'excellent'
+                             'nice'],
                     'nots': []
                     }
                     ]
             }
         }
-an7_neu_fil, an7_neu_agg = analize_wordset_not_so_naive_4(odf, wsw7_neu, True)
+an7_pos_fil, an7_pos_agg = analize_wordset_not_so_naive_4(odf, wsw7_pos, True)
 
-wsw8_neu =  {
-            'name':'(NEU) Precio'
+wsw7_neg =  {
+            'name':'Devolución/Postventa (NEG)'
+            ,'wordset': 
+            {
+                'ands': [],
+                'ors' :
+                    [
+                    {
+                    'syn0': [],
+                    'syn1': ['help_desk',
+                             'customer_support',
+                             'customer_service',
+                             'tech_support',
+                             'call_customer',
+                             'called_customer'],
+                    'syn2': ['poor'],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': [],
+                    'syn1': ['warranty_service',
+                             'manufacturer_warranty',
+                             'warranty'],
+                    'syn2': ['poor',
+                             'terrible',
+                             'horrible'],
+                    'nots': []
+                    }
+                    ]
+            }
+        }
+an7_neg_fil, an7_neg_agg = analize_wordset_not_so_naive_4(odf, wsw7_neg, True)
+
+wsw8 =  {
+            'name':'Precio'
             ,'wordset': 
             {
                 'ands': [],
@@ -3107,17 +3136,46 @@ wsw8_neu =  {
                     ]
             }
         }
-an8_neu_fil, an8_neu_agg = analize_wordset_not_so_naive_4(odf, wsw8_neu, True)
+an8_fil, an8_agg = analize_wordset_not_so_naive_4(odf, wsw8, True)
 
 wsw9_neg = {
-            'name':'(NEG) Sentimiento'
+            'name':'Sentimiento (NEG)'
             ,'wordset': 
             {
                 'ands': [],
                 'ors' :
                     [
                     {
-                    'syn0': ['not_buy', 'not_bother', 'buyer_beware', 'never_buy', 'not_waste', 'not_wast', 'throw_away', 'cannot_recommend', 'wasted_money'],
+                    'syn0': ['not_buy', 
+                             'not_bother', 
+                             'buyer_beware', 
+                             'never_buy', 
+                             'not_waste', 
+                             'not_wast', 
+                             'throw_away', 
+                             'cannot_recommend', 
+                             'wasted_money'],
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': busca_tokens(tokens, ['return']),
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': busca_tokens(tokens, ['returning']),
+                    'syn1': [],
+                    'syn2': [],
+                    'nots': []
+                    }
+                    ,{
+                    'syn0': ['sent_back',
+                             'send_back',
+                             'sending_back',
+                             'ship_back'],
                     'syn1': [],
                     'syn2': [],
                     'nots': []
@@ -3129,7 +3187,7 @@ an9_neg_fil, an9_neg_agg = analize_wordset_not_so_naive_4(odf, wsw9_neg, show=Tr
     
 
 wsw9_pos = {
-            'name':'(POS) Sentimiento'
+            'name':'Sentimiento (POS)'
             ,'wordset': 
             {
                 'ands': [],
@@ -3191,12 +3249,13 @@ lista_resultados_busquedas.append({'name':wsw2_pos['name'], 'resultados': an2_po
 lista_resultados_busquedas.append({'name':wsw2_neg['name'], 'resultados': an2_neg_fil, 'agregados': an2_neg_agg})
 lista_resultados_busquedas.append({'name':wsw3_pos['name'], 'resultados': an3_pos_fil, 'agregados': an3_pos_agg})
 lista_resultados_busquedas.append({'name':wsw3_neg['name'], 'resultados': an3_neg_fil, 'agregados': an3_neg_agg})
-lista_resultados_busquedas.append({'name':wsw4_neg['name'], 'resultados': an4_neg_fil, 'agregados': an4_neg_agg})
-lista_resultados_busquedas.append({'name':wsw5_neu['name'], 'resultados': an5_neu_fil, 'agregados': an5_neu_agg})
+lista_resultados_busquedas.append({'name':wsw4['name'], 'resultados': an4_fil, 'agregados': an4_agg})
+lista_resultados_busquedas.append({'name':wsw5['name'], 'resultados': an5_fil, 'agregados': an5_agg})
 lista_resultados_busquedas.append({'name':wsw6_pos['name'], 'resultados': an6_pos_fil, 'agregados': an6_pos_agg})
 lista_resultados_busquedas.append({'name':wsw6_neg['name'], 'resultados': an6_neg_fil, 'agregados': an6_neg_agg})
-lista_resultados_busquedas.append({'name':wsw7_neu['name'], 'resultados': an7_neu_fil, 'agregados': an7_neu_agg})
-lista_resultados_busquedas.append({'name':wsw8_neu['name'], 'resultados': an8_neu_fil, 'agregados': an8_neu_agg})
+lista_resultados_busquedas.append({'name':wsw7_pos['name'], 'resultados': an7_pos_fil, 'agregados': an7_pos_agg})
+lista_resultados_busquedas.append({'name':wsw7_neg['name'], 'resultados': an7_neg_fil, 'agregados': an7_neg_agg})
+lista_resultados_busquedas.append({'name':wsw8['name'], 'resultados': an8_fil, 'agregados': an8_agg})
 lista_resultados_busquedas.append({'name':wsw9_pos['name'], 'resultados': an9_pos_fil, 'agregados': an9_pos_agg})
 lista_resultados_busquedas.append({'name':wsw9_neg['name'], 'resultados': an9_neg_fil, 'agregados': an9_neg_agg})
 
@@ -3236,7 +3295,7 @@ print_simple_histogram(an9_neg_agg['doc_number']) # (NEG) Sentimiento
 
 get_respuesta_comprador(lista_resultados_busquedas, mat_doc_ws)
 
-
+busca_tokens(tokens, ['awkward'])
 
 
 
@@ -3292,30 +3351,32 @@ wswT =   {
             'name':'correct size'
             ,'wordset': 
             {
-                'ands': [],
+                'ands': ['plug_play'],
                 'ors' :
                     [
                     {
-                    'syn0': ['plug_play'],
+                    'syn0': [],
                     'syn1': [],
                     'syn2': [],
-                    'nots': ['not']
+                    'nots': []
                     }
                     ]
             }
         }
                 
-anT_fil, anT_agg = analize_wordset_not_so_naive_4(odf_17525, wswT, show=True)
+anT_fil, anT_agg = analize_wordset_not_so_naive_4(odf, wswT, show=True)
 
 
 
 
-e = odf_17525.loc[[3117]]
+
 
 
 
 odf_17525 = load_latest_odf(17525, True)
 
+
+e = odf_17525.loc[[109]]
 
 
 
@@ -3350,238 +3411,28 @@ get_close_words_2(df=odf, word='defective')
 
 
 
+wordsets_names = get_wordsets_names(mat_doc_ws)
+mat_doc_ws_reduced = get_reduced_mat_doc_ws(mat_doc_ws)
+dfv = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
+dfh = dfv.copy()
 
-
-
-wswT =   {
-            'name':'correct size'
-            ,'wordset': 
-            {
-                'ands': [],
-                'ors' :
-                    [
-                    {
-                    'syn0': ['plug_play'],
-                    'syn1': [],
-                    'syn2': [],
-                    'nots': ['not', 'nor']
-                    }
-                    ]
-            }
-        }
-                    
-wordset_wrapper = wswT
-max_distance = 3
-wordset_ands = wordset_wrapper['wordset']['ands']
-wordset_ors = wordset_wrapper['wordset']['ors']
-wordset_name = wordset_wrapper['name']
-lista_or_words = get_ws_or_words(wordset_wrapper)
-rows = []
-
-elementos_or = get_wsw_structure(wordset_wrapper)[1]
-
-e = odf_17525.loc[[3117]]
-df = e
-
-
-##################################################_C_O_R_E_########################################
-i = 0
-j = 0
-for opinion in df.iterrows():
-    ors_compliance = False
-    and_compliance = False
-    parte = 'summary'
-    opinion_text_full = opinion[1]['text'].split(', ')
-    opinion_text_set = set(opinion_text_full)
+for tema in wordsets_names:
+    dfv[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()    
+    dfh.loc[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()  
     
-    if (len(wordset_ands) == 0 or check_existencia(opinion_text_set, wordset_ands)) and (elementos_or == 0 or check_existencia(opinion_text_set, lista_or_words)): # si no hay ninguna opcion de hacer hit no entramos en loop
-        for pase in range(0,2):
-            if parte == 'summary':
-                opinion_text = opinion_text_full[0:opinion[1]['summary_tokens_length']]
-                parte = 'review'
-            elif not ors_compliance:
-                opinion_text = opinion_text_full[opinion[1]['summary_tokens_length']:]
-    
-            if not ors_compliance:
-                if not and_compliance:
-                    ands_count = 0
-                    for and_word in wordset_ands:
-                        if opinion_text.count(and_word) > 0:
-                            ands_count += 1
-                            
-                    and_compliance = ands_count == len(wordset_ands)
-                if and_compliance: # se cumplen los ands
-                    for or_group in wordset_ors:
-                        if not ors_compliance:
-                            syn0_words = or_group['syn0']
-                            syn0_indices = []
-                            
-                            for syn0_word in syn0_words:
-                                syn0_indices.extend([i for i, j in enumerate(opinion_text) if j == syn0_word])
-                                
-                            syn1_words = or_group['syn1']
-                            syn1_indices = []
-                            for syn1_word in syn1_words:
-                                syn1_indices.extend([i for i, j in enumerate(opinion_text) if j == syn1_word])
-                        
-                            if len(syn0_indices) == 0 and len(syn1_indices) == 0: #ESTE OR_GROUP NO SATISFACE
-                                continue
-                            elif len(syn0_indices) > 0 and len(syn1_indices) == 0: #LOS SYN0 PUEDEN SATISFACER, NO ASI LOS SYN1
-                                # CONSTRUCCION ARRAY DE SYN0
-                                min_posicion = max(min(syn0_indices)-max_distance, 0)
-                                max_posicion = min(max(syn0_indices)+max_distance, len(opinion_text))
-                                tokens_implicados = opinion_text[min_posicion:max_posicion+1]
-                                syn0_array = [0] * len(tokens_implicados)
-                                syn0_indices = [x-min_posicion for x in syn0_indices]
-                                for syn0_indice in syn0_indices:
-                                    syn0_array[syn0_indice] = 1
-                                # CONSTRUCCION ARRAY DE NOTS
-                                nots_words = wordset_ors[0]['nots']
-                                nots_indices = []
-                                for nots_word in nots_words:
-                                    nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                    ors_compliance = True
-                                    break
-                                else:
-                                    nots_array = [0] * len(tokens_implicados)
-                                    for nots_indice in nots_indices:
-                                        nots_array[nots_indice] = 1
-                                    # CONSTRUCCION MATRIZ
-                                    #matrix = pd.DataFrame(zip(syn0_array, nots_array)).transpose()
-                                    #matrix.columns = tokens_implicados
-                                    #matrix.index = ['syn0', 'nots']
-                                    
-                                    for syn0_indice in syn0_indices:
-                                        #if matrix.loc['nots'][syn0_indice-max_distance:syn0_indice].sum() == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                        primera_posicion = 0 if syn0_indice-max_distance<0 else syn0_indice-max_distance
-                                        if sum(nots_array[primera_posicion:syn0_indice]) == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                            ors_compliance = True
-                            elif len(syn0_indices) == 0 and len(syn1_indices) > 0: #HAY SYN1 PERO NO HAY SYN0
-                                min_posicion = max(min(syn1_indices)-max_distance, 0)
-                                max_posicion = min(max(syn1_indices)+max_distance, len(opinion_text))
-                                tokens_implicados = opinion_text[min_posicion:max_posicion+1]
-                                
-                                syn2_words = or_group['syn2']
-                                syn2_indices = []
-                                for syn2_word in syn2_words:
-                                    syn2_indices.extend([i for i, j in enumerate(tokens_implicados) if j == syn2_word])
-                                if len(syn2_indices) > 0 or len(syn2_words) == 0: # HAY SYN2, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                    syn2_array = [0] * len(tokens_implicados)
-                                    for syn2_indice in syn2_indices:
-                                        syn2_array[syn2_indice] = 1
-                
-                                    syn1_indices = [x-min_posicion for x in syn1_indices]
-                                    syn1_indices_sobreviven = []
-                                    for indice in syn1_indices:
-                                        if sum(syn2_array[indice-max_distance:indice+max_distance+1]) > 0:
-                                            syn1_indices_sobreviven.append(indice)
-                                    
-                                    syn1_array_sobreviven = [0] * len(tokens_implicados)
-                                    for syn1_indice in syn1_indices_sobreviven:
-                                        syn1_array_sobreviven[syn1_indice] = 1
-                
-                                    if len(syn1_array_sobreviven) > 0: #SOBREVIVE ALGUN SYN1, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                        # CONSTRUCCION ARRAY DE NOTS
-                                        nots_words = wordset_ors[0]['nots']
-                                        nots_indices = []
-                                        for nots_word in nots_words:
-                                            nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                        if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                            ors_compliance = True
-                                            break
-                                        else:
-                                            nots_array = [0] * len(tokens_implicados)
-                                            for nots_indice in nots_indices:
-                                                nots_array[nots_indice] = 1
-                                            # CONSTRUCCION MATRIZ
-                                            #matrix = pd.DataFrame(zip(syn1_array_sobreviven, nots_array)).transpose()
-                                            #matrix.columns = tokens_implicados
-                                            #matrix.index = ['syn1', 'nots']
-                                            for syn1_indice in syn1_indices_sobreviven:
-                                                primera_posicion = 0 if syn1_indice-max_distance<0 else syn1_indice-max_distance
-                                                if sum(nots_array[primera_posicion:syn1_indice]) == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                #if matrix.loc['nots'][syn1_indice-max_distance:syn1_indice].sum() == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                    ors_compliance = True
-                            elif len(syn0_indices) > 0 and len(syn1_indices) > 0: #HAY SYN1 Y SYN0
-                                posiciones_syn = []
-                                posiciones_syn.extend(syn0_indices)
-                                posiciones_syn.extend(syn1_indices)
-                                min_posicion = max(min(posiciones_syn)-max_distance, 0)
-                                max_posicion = min(max(posiciones_syn)+max_distance, len(opinion_text))
-                                tokens_implicados = opinion_text[min_posicion:max_posicion+1]
-                                syn0_array = [0] * len(tokens_implicados)
-                                syn0_indices = [x-min_posicion for x in syn0_indices]
-                                for syn0_indice in syn0_indices:
-                                    syn0_array[syn0_indice] = 1
-                                # CONSTRUCCION ARRAY DE NOTS
-                                nots_words = wordset_ors[0]['nots']
-                                nots_indices = []
-                                for nots_word in nots_words:
-                                    nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                    ors_compliance = True
-                                    break
-                                else:
-                                    nots_array = [0] * len(tokens_implicados)
-                                    for nots_indice in nots_indices:
-                                        nots_array[nots_indice] = 1
-                                    # CONSTRUCCION MATRIZ
-                                    #matrix = pd.DataFrame(zip(syn0_array, nots_array)).transpose()
-                                    #matrix.columns = tokens_implicados
-                                    #matrix.index = ['syn0', 'nots']
-                                    
-                                    for syn0_indice in syn0_indices:
-                                        primera_posicion = 0 if syn0_indice-max_distance<0 else syn0_indice-max_distance
-                                        if sum(nots_array[primera_posicion:syn0_indice]) == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                        #if matrix.loc['nots'][syn0_indice-max_distance:syn0_indice].sum() == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                            ors_compliance = True
-                                    if not ors_compliance: #LOS SYN0 NO SATISFACEN, HAY QUE VER LOS SYN1
-                                        syn2_words = or_group['syn2']
-                                        syn2_indices = []
-                                        for syn2_word in syn2_words:
-                                            syn2_indices.extend([i for i, j in enumerate(tokens_implicados) if j == syn2_word])
-                                        if len(syn2_indices) > 0 or len(syn2_words) == 0: # HAY SYN2, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                            syn2_array = [0] * len(tokens_implicados)
-                                            for syn2_indice in syn2_indices:
-                                                syn2_array[syn2_indice] = 1
-                        
-                                            syn1_indices = [x-min_posicion for x in syn1_indices]
-                                            syn1_indices_sobreviven = []
-                                            for indice in syn1_indices:
-                                                if sum(syn2_array[indice-max_distance:indice+max_distance+1]) > 0:
-                                                    syn1_indices_sobreviven.append(indice)
-                                            
-                                            syn1_array_sobreviven = [0] * len(tokens_implicados)
-                                            for syn1_indice in syn1_indices_sobreviven:
-                                                syn1_array_sobreviven[syn1_indice] = 1
-                        
-                                            if len(syn1_array_sobreviven) > 0: #SOBREVIVE ALGUN SYN1, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                                # CONSTRUCCION ARRAY DE NOTS
-                                                nots_words = wordset_ors[0]['nots']
-                                                nots_indices = []
-                                                for nots_word in nots_words:
-                                                    nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                                if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                                    ors_compliance = True
-                                                    break
-                                                else:
-                                                    nots_array = [0] * len(tokens_implicados)
-                                                    for nots_indice in nots_indices:
-                                                        nots_array[nots_indice] = 1
-                                                    # CONSTRUCCION MATRIZ
-                                                    #matrix = pd.DataFrame(zip(syn1_array_sobreviven, nots_array)).transpose()
-                                                    #matrix.columns = tokens_implicados
-                                                    #matrix.index = ['syn1', 'nots']
-                                                    for syn1_indice in syn1_indices_sobreviven:
-                                                        primera_posicion = 0 if syn1_indice-max_distance<0 else syn1_indice-max_distance
-                                                        if sum(nots_array[primera_posicion:syn1_indice]) == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                        #if matrix.loc['nots'][syn1_indice-max_distance:syn1_indice].sum() == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                            ors_compliance = True
-    if and_compliance and (ors_compliance or elementos_or == 0):
-        rows.append({'doc_number': opinion[1]['doc_number']})
-        j += 1
-##################################################_C_O_R_E_########################################
+
+
+dfv2 = dfv.copy()
+dfh2 = dfh.copy()
+
+for i in range(0, len(wordsets_names)):
+    #for j in range(i, len(wordsets_names)):
+    dfv2.iloc[i][i] = 0 #df.iloc[j][i]
+    dfh2.iloc[i][i] = 0
+
+
+sns.heatmap(dfv2, cmap=get_heatmap_cmap())
+sns.heatmap(dfh2, cmap=get_heatmap_cmap())
 
 
 
