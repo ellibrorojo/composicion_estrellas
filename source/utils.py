@@ -827,6 +827,7 @@ def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
     timestamps = calcula_y_muestra_tiempos('ARRANCA EL BUCLE DE OPINIONES', timestamps)
     ##################################################_C_O_R_E_########################################
     i = 0
+    j = 0
     for opinion in df.iterrows():
         ors_compliance = False
         and_compliance = False
@@ -1020,9 +1021,10 @@ def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
                                                                 ors_compliance = True
         if and_compliance and (ors_compliance or elementos_or == 0):
             rows.append({'doc_number': opinion[1]['doc_number']})
+            j += 1
     ##################################################_C_O_R_E_########################################
-        if i % 50000 == 0:
-            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: NUM_DOCUMENTO='+str(i)+' DE '+str(len(df)), timestamps)
+        if i % 100000 == 0:
+            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: NUM_DOCUMENTO='+str(i)+' DE '+str(len(df))+' HITS: '+str(j), timestamps)
         i += 1
     timestamps = calcula_y_muestra_tiempos('FINALIZA EL BUCLE DE OPINIONES', timestamps)
     rows = pd.DataFrame(rows)
@@ -1955,7 +1957,7 @@ def busca_tokens(bow, words):
         for elemento in set(bow['bigram']): # como set el rendimiento mejora espectacularmente
             if elemento.split('_').count(word):
                 tokens_a_retornar.append(elemento)
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GENERATE_BOW', timestamps)
+    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN BUSCA_TOKENS', timestamps)
     return tokens_a_retornar
 ########################################################################################################################
 def get_heatmap_cmap(grey_shades=True):
@@ -1986,11 +1988,13 @@ def get_sharing_matrix(mat_doc_ws):
     for tema in wordsets_names:
         df[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()
     
+    df2 = df.copy()
     for i in range(0, len(wordsets_names)):
-        for j in range(i, len(wordsets_names)):
-            df.iloc[i][j] = 0 #df.iloc[j][i]
+        #for j in range(i, len(wordsets_names)):
+            #df.iloc[i][j] = 0 #df.iloc[j][i]
+        df2.iloc[i][i] = 0
     
-    sns.heatmap(df, cmap=get_heatmap_cmap())
+    sns.heatmap(df2, cmap=get_heatmap_cmap())
     return df
 ########################################################################################################################
 def calculate_heatmap_matrix(mat_doc_ws):
