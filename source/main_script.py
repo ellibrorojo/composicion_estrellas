@@ -41,7 +41,7 @@ def getDF(path, nrows):
     for d in parse(path):
         df[i] = d
         i += 1
-        if i % 50000 == 0:
+        if i % 200000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE RAW DATA: i='+str(i)+' de '+str(nrows), timestamps)
         if i == nrows:
             break
@@ -1458,8 +1458,16 @@ def get_stopwords(modo='pre'):
 def mapear_palabras_especiales(array_input):
     retorno = ['not'    if x == 'didn' 
                         or x == 'didnt' 
+                        or x == 'didnot'
+                        or x == 'dident'
                         or x == 'doesn' 
-                        or x == 'doesnt' 
+                        or x == 'doesnt'
+                        or x == 'dosn'
+                        or x == 'doens'
+                        or x == 'dosen'
+                        or x == 'dosnt'
+                        or x == 'doesnot'
+                        or x == 'dosent'
                         or x == 'dont' 
                         or x == 'don' 
                         or x == 'couldn'
@@ -2091,6 +2099,23 @@ def get_respuesta_comprador(lista_resultados_analize, matriz_doc_ws):
     respuesta_comprador.sort_values(by='slope_mod', ascending=False, inplace=True)
     return respuesta_comprador
 ########################################################################################################################
+def get_first_lines_electronics_5(n_rows):
+    nrows = 10
+    with open("../data/Electronics_5.json", "r") as f:
+        counter = 0
+        lines = []
+     
+        for line in f:
+            line_dict = json.loads(line)
+            if 'reviewText' in line_dict and 'overall' in line_dict and 'summary' in line_dict:
+                lines.append(line_dict)
+                counter += 1
+            if counter == nrows: break
+
+    return pd.DataFrame.from_dict(lines)
+########################################################################################################################
+    
+
 
 data_raw_0 = electronics_5_to_raw_data_0(10000)
 
@@ -2126,12 +2151,82 @@ odf = load_latest_odf(nrows=1532805, is_false=True)
 
 
 
+busca_tokens(tokens, ['work'])
+
+
+
+get_close_words_2(odf, 'works_flawlessly')
+
+df = odf
+word = 'works_flawlessly'
+max_distance = 3
+
+timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN GET_CLOSE_WORDS', timestamps=[])
+palabras_antes = []
+palabras_despues  = []
+ratings_antes = []
+ratings_despues = []
+
+i = 0
+for opinion in df.iterrows():
+    texto = opinion[1]['text'].split(', ')
+    if word in set(texto):
+        word_indices = []
+        word_indices.extend([i for i, j in enumerate(texto) if j == word])
+        for indice in word_indices:
+            texto_despues = texto[indice+1:indice+max_distance+1]
+            palabras_despues.extend(texto_despues)
+            ratings_despues.extend(len(texto_despues)*[opinion[1]['rating']])
+            texto_antes = texto[indice-max_distance:indice]
+            palabras_antes.extend(texto_antes)
+            ratings_antes.extend(len(texto_antes)*[opinion[1]['rating']])
+    if i%50000 == 0:
+        timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: i='+str(i)+' DE '+str(len(df)), timestamps=timestamps)
+    i += 1
+
+df_antes = pd.DataFrame(list(zip(palabras_antes, ratings_antes)), columns = ['token', 'rating'])
+df_antes = df_antes.groupby('token').agg({'rating':[np.size, np.mean, np.std]}).fillna(0)
+df_antes = df_antes.drop(remove_stopwords_from_bow_2(df_antes, 'post'))
+df_antes.columns = ['num_occurrences', 'rating_mean', 'rating_sd']
+df_antes = df_antes.sort_values(by=['num_occurrences'], ascending=False)
+
+df_despues = pd.DataFrame(list(zip(palabras_despues, ratings_despues)), columns = ['token', 'rating'])
+df_despues = df_despues.groupby('token').agg({'rating':[np.size, np.mean, np.std]}).fillna(0)
+df_despues = df_despues.drop(remove_stopwords_from_bow_2(df_despues, 'post'))
+df_despues.columns = ['num_occurrences', 'rating_mean', 'rating_sd']
+df_despues = df_despues.sort_values(by=['num_occurrences'], ascending=False)
+
+timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GET_CLOSE_WORDS', timestamps=timestamps)
 
 
 
 
 
 
+
+
+
+
+
+
+
+
+busca_tokens(tokens, ['did_not_work'])
+
+
+
+
+
+
+
+
+
+<<<<<<< HEAD
+odf = odf_17525
+=======
+get_first_lines_electronics_5(10)
+
+>>>>>>> aff757580b6b683a3e78a011694f67f3713f3fbd
 
 
 
