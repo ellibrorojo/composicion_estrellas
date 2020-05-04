@@ -41,7 +41,7 @@ def getDF(path, nrows):
     for d in parse(path):
         df[i] = d
         i += 1
-        if i % 200000 == 0:
+        if i % 500000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE RAW DATA: i='+str(i)+' de '+str(nrows), timestamps)
         if i == nrows:
             break
@@ -91,13 +91,14 @@ def print_simple_histogram(data_agg, labels=None, title='Title'):
     plt.title(title)
     plt.show()
 ########################################################################################################################
-def print_simple_boxplot(data, labels, yscale, grid):
+def print_simple_boxplot(data, labels, yscale, grid, title='Title'):
     fig, ax = plt.subplots()
     ax.set_yscale(yscale)
     if grid != 'None':
         ax.yaxis.grid(True, which = grid)
     ax.set_xticklabels(labels)
     ax.boxplot(data)
+    plt.title(title)
     plt.show()
 ########################################################################################################################
 def strfdelta(tdelta, fmt='{H:02}h {M:02}m {S:02}s', inputtype='timedelta'):
@@ -157,7 +158,7 @@ def calcula_y_muestra_tiempos(texto, timestamps):
     plt.legend((plt_summary[0], plt_review[0]), ('En summaries', 'En reviews'))
     plt.show()'''
 ########################################################################################################################
-def print_stacked_histogram(data_agg, bottom_colname, bottom_legend, top_colname, top_legend):
+def print_stacked_histogram(data_agg, bottom_colname, bottom_legend, top_colname, top_legend, title='Title'):
     x_values = list(data_agg.index.values)
     x_values = list(map(int, x_values))
     #plt.ylabel('# Referencias')
@@ -166,6 +167,7 @@ def print_stacked_histogram(data_agg, bottom_colname, bottom_legend, top_colname
     plt_bottom  = plt.bar(x_values, data_agg[bottom_colname], color='tab:red')
     plt_top     = plt.bar(x_values, data_agg[top_colname]-data_agg[bottom_colname], bottom=data_agg[bottom_colname], color='tab:blue')
     plt.legend((plt_bottom[0], plt_top[0]), (bottom_legend, top_legend))
+    plt.title(title)
     plt.show()
 ########################################################################################################################
 def remove_rating_bias_from_raw_data(raw_data, seed=2020):
@@ -188,40 +190,42 @@ def add_lenght_info(raw_data):
 ########################################################################################################################
 def perform_eda(raw_data, analysis):
     if analysis == 'opinions_per_year':
-        print_simple_histogram(raw_data.groupby('opinion_year').count()['item_id'])
+        print_simple_histogram(raw_data.groupby('opinion_year').count()['item_id'], title='Cantidad de opiniones publicadas por año')
     
     elif analysis == 'opinions_per_item':
         this_data = raw_data.groupby('item_id').agg({'rating':np.size})['rating']    
-        print('Aparecen ' + str(len(this_data)) + ' productos distintos en el dataset.')
+        print('Aparecen ' + str(len(this_data)) + ' artículos distintos.')
         plt.hist(this_data, bins=50, log=True, color='tab:blue')
-        print_simple_boxplot(data=this_data, labels=[''], yscale='log', grid='minor')
+        plt.title('Cantidad de artículos por número de opiniones')
+        print_simple_boxplot(data=this_data, labels=[''], yscale='log', grid='minor', title='Artículos por número de opiniones')
     
     elif analysis == 'opinions_per_user':
         this_data = raw_data.groupby('user_id').agg({'rating':np.size})['rating']
-        print('Aparecen ' + str(len(this_data)) + ' usuarios distintos en el dataset.')
+        print('Aparecen ' + str(len(this_data)) + ' usuarios distintos.')
         plt.hist(this_data, bins=50, log=True, color='tab:blue')
-        print_simple_boxplot(data=this_data, labels=[''], yscale='log', grid='minor')
+        plt.title('Cantidad de usuarios por número de opiniones')
+        print_simple_boxplot(data=this_data, labels=[''], yscale='log', grid='minor', title='Usuarios por número de opiniones')
             
     elif analysis == 'rating_sd_per_item':
         this_data = raw_data.groupby('item_id').agg({'rating':np.std})
         this_data = this_data.dropna()['rating'] #Esta línea sobra si se toman todas las opiniones, pues no habrá nans
-        print_simple_boxplot(data=this_data, labels=[''], yscale='linear', grid='major')
+        print_simple_boxplot(data=this_data, labels=[''], yscale='linear', grid='major', title='Dispersión de la puntuación')
         
     elif analysis == 'rating_distribution':
         this_data = raw_data.groupby('rating').agg({'summary':np.size}).rename(columns={'summary':'total_docs'})['total_docs']
-        print_simple_histogram(data_agg=this_data)
+        print_simple_histogram(data_agg=this_data, title='Distribución de opiniones por puntuación')
         
     elif analysis == 'rating_distribution_item':
         d = round(raw_data.groupby('item_id').agg({'rating':np.median}))
         d['item_id'] = d.index.values
         this_data = d.groupby('rating').count()['item_id']
-        print_simple_histogram(data_agg=this_data)
+        print_simple_histogram(data_agg=this_data, title='Distribución de opiniones por puntuación media de artículo')
         
     elif analysis == 'summary_review_length_comparison_per_rating':
         raw_data = add_lenght_info(raw_data)
         raw_data['ratio_text_summary'] = raw_data.apply(lambda row: row['total_text']/row['summary_length'], axis=1)
         resultados_agregados = raw_data.groupby('rating').agg({'summary_length':np.mean, 'review_length':np.mean, 'ratio_text_summary':np.mean, 'total_text':np.mean})
-        print_stacked_histogram(resultados_agregados, 'summary_length', '# palabras en summary', 'review_length', '# palabras en review')
+        print_stacked_histogram(resultados_agregados, 'summary_length', '# palabras en summary', 'review_length', '# palabras en review', title='Tamaños review y summary')
         #print_stacked_histogram(resultados_agregados, 'review_length', '# palabras en review', 'summary_length', '# palabras en summary')
         lista_de_ratios = []
         lista_de_ratios.append(raw_data[raw_data.rating==1]['ratio_text_summary'])
@@ -229,7 +233,8 @@ def perform_eda(raw_data, analysis):
         lista_de_ratios.append(raw_data[raw_data.rating==3]['ratio_text_summary'])
         lista_de_ratios.append(raw_data[raw_data.rating==4]['ratio_text_summary'])
         lista_de_ratios.append(raw_data[raw_data.rating==5]['ratio_text_summary'])
-        print_simple_boxplot(data = lista_de_ratios, labels=[1, 2, 3, 4, 5], yscale='log', grid='minor')
+        print_simple_boxplot(data = lista_de_ratios, labels=[1, 2, 3, 4, 5], yscale='log', grid='minor', title='Proporción tamaño review/summary')
+    
     elif analysis == 'text_length_per_rating':
         raw_data = add_lenght_info(raw_data)
         lista_de_longitudes = []
@@ -238,7 +243,7 @@ def perform_eda(raw_data, analysis):
         lista_de_longitudes.append(raw_data[raw_data.rating==3]['total_text'])
         lista_de_longitudes.append(raw_data[raw_data.rating==4]['total_text'])
         lista_de_longitudes.append(raw_data[raw_data.rating==5]['total_text'])
-        print_simple_boxplot(data = lista_de_longitudes, labels=[1, 2, 3, 4, 5], yscale='log', grid='minor')
+        print_simple_boxplot(data = lista_de_longitudes, labels=[1, 2, 3, 4, 5], yscale='log', grid='minor', title='Longitud del texto completo')
 ########################################################################################################################
 def get_opinions_full_df(nrows, sampling=False):
     df = pd.read_csv (r'opinions_full_df_1000000.csv')
@@ -253,7 +258,7 @@ def build_odf(doc_numbers, ratings, summaries_bigrams, summaries_raw, reviews_bi
     text2 = []
     for i in range(0, len(summaries_bigrams)):
         text.append(summaries_bigrams[i]+reviews_bigrams[i])
-        if i%10000 == 0:
+        if i%200000 == 0:
            timestamps = calcula_y_muestra_tiempos('BUCLE GENERACIÓN VARIABLE TEXT: i='+str(i)+' DE '+str(len(summaries_bigrams)), timestamps)
     timestamps = calcula_y_muestra_tiempos('VARIABLE TEXT GENERADA', timestamps)
     
@@ -269,7 +274,7 @@ def build_odf(doc_numbers, ratings, summaries_bigrams, summaries_raw, reviews_bi
                     linea2.append(item)
             text2.append(linea2)
             i += 1
-            if i%10000 == 0:
+            if i%200000 == 0:
                 timestamps = calcula_y_muestra_tiempos('BUCLE GENERACIÓN VARIABLE TEXT: i='+str(i)+' DE '+str(len(text)), timestamps)
         timestamps = calcula_y_muestra_tiempos('VARIABLE TEXT GENERADA', timestamps)
         for linea2 in text2:
@@ -1023,7 +1028,7 @@ def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
             rows.append({'doc_number': opinion[1]['doc_number']})
             j += 1
     ##################################################_C_O_R_E_########################################
-        if i % 100000 == 0:
+        if i % 200000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: NUM_DOCUMENTO='+str(i)+' DE '+str(len(df))+' HITS: '+str(j), timestamps)
         i += 1
     timestamps = calcula_y_muestra_tiempos('FINALIZA EL BUCLE DE OPINIONES', timestamps)
@@ -1178,7 +1183,7 @@ def generate_bow(df, classify_pos_b=True, show=False):
         if text_list.count(', ') > 0:
             bigrams.extend(text_list.split(', '))
         i += 1
-        if i%50000 == 0:
+        if i%200000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE GENERANDO BOW: i='+str(i)+' de '+str(len(df)), timestamps)
     timestamps = calcula_y_muestra_tiempos('LISTA DE BIGRAMS FINALIZADA', timestamps)
     aux = pd.Series(bigrams).value_counts()
@@ -1536,7 +1541,7 @@ def get_close_words_2(df, word, max_distance=3, n_words=8):
                 texto_antes = texto[indice-max_distance:indice]
                 palabras_antes.extend(texto_antes)
                 ratings_antes.extend(len(texto_antes)*[opinion[1]['rating']])
-        if i%50000 == 0:
+        if i%200000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: i='+str(i)+' DE '+str(len(df)), timestamps=timestamps)
         i += 1
 
@@ -2005,6 +2010,41 @@ def get_sharing_matrix(mat_doc_ws):
     sns.heatmap(df2, cmap=get_heatmap_cmap())
     return df
 ########################################################################################################################
+def get_sharing_matrix_2(mat_doc_ws):
+    wordsets_names = get_wordsets_names(mat_doc_ws)
+    mat_doc_ws_reduced = get_reduced_mat_doc_ws(mat_doc_ws)
+    df = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
+    
+    for tema in wordsets_names:
+        df[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()
+    
+    df2_1 = df.copy()
+    for i in range(0, len(wordsets_names)):
+        df2_1.iloc[i][i] = 0
+        
+    wordsets_names = get_wordsets_names(mat_doc_ws)
+    mat_doc_ws_reduced = get_reduced_mat_doc_ws(mat_doc_ws)
+    df = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
+    
+    for tema in wordsets_names:
+        df.loc[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()
+    
+    df2_2 = df.copy()
+    for i in range(0, len(wordsets_names)):
+        df2_2.iloc[i][i] = 0
+  
+    df3 = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
+    
+    df3 = (df2_1+df2_2)/2
+    
+    for i in range(0, len(wordsets_names)):
+        for j in range(i, len(wordsets_names)):
+            df3.iloc[i][j] = 0 #df.iloc[j][i]
+    
+    sns.heatmap(df3, cmap=get_heatmap_cmap())
+
+    return df3
+########################################################################################################################
 def calculate_heatmap_matrix(mat_doc_ws):
     wordsets_names = get_wordsets_names(mat_doc_ws)
     heatmap = mat_doc_ws.groupby('rating').sum()[wordsets_names]
@@ -2143,7 +2183,7 @@ perform_eda(data_raw_1, 'text_length_per_rating')
 
 odf_false, odf = execute_preprocessing_pipeline(data_raw_1)
 odf = execute_preprocessing_pipeline(data_raw_1, False)
-odf = load_latest_odf(nrows=1532805, is_false=True)
+odf = load_latest_odf(nrows=214475, is_false=True)
 #odf = load_latest_odf(nrows=1532805, is_false=False)
 #odf_false = load_latest_odf(nrows=1532805, is_false=True)
 
@@ -2218,15 +2258,6 @@ busca_tokens(tokens, ['did_not_work'])
 
 
 
-
-
-
-<<<<<<< HEAD
-odf = odf_17525
-=======
-get_first_lines_electronics_5(10)
-
->>>>>>> aff757580b6b683a3e78a011694f67f3713f3fbd
 
 
 
@@ -3360,7 +3391,7 @@ visualize_wordsets_network(mat_doc_ws, ratings='F')
 visualize_wordsets_network_4(mat_doc_ws, group_size=1, k=0.01, ratings='F')
 visualize_wordsets_network_6(mat_doc_ws, group_size=500, k=0.3, ratings='F')
 
-df_sharing = get_sharing_matrix(mat_doc_ws)
+df_sharing = get_sharing_matrix_2(mat_doc_ws)
 
 print_topic_heatmaps(mat_doc_ws)
 print_rating_heatmaps(mat_doc_ws)
@@ -3391,6 +3422,25 @@ print_simple_histogram(an9_neg_agg['doc_number']) # (NEG) Sentimiento
 get_respuesta_comprador(lista_resultados_busquedas, mat_doc_ws)
 
 busca_tokens(tokens, ['awkward'])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
