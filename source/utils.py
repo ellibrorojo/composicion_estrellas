@@ -41,7 +41,7 @@ def getDF(path, nrows):
     for d in parse(path):
         df[i] = d
         i += 1
-        if i % 50000 == 0:
+        if i % 200000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE RAW DATA: i='+str(i)+' de '+str(nrows), timestamps)
         if i == nrows:
             break
@@ -2090,4 +2090,19 @@ def get_respuesta_comprador(lista_resultados_analize, matriz_doc_ws):
     respuesta_comprador['slope_mod'] = round(respuesta_comprador['slope']/statistics_by_topic(matriz_doc_ws)['1_size'], 3)
     respuesta_comprador.sort_values(by='slope_mod', ascending=False, inplace=True)
     return respuesta_comprador
+########################################################################################################################
+def get_first_lines_electronics_5(n_rows):
+    nrows = 10
+    with open("../data/Electronics_5.json", "r") as f:
+        counter = 0
+        lines = []
+     
+        for line in f:
+            line_dict = json.loads(line)
+            if 'reviewText' in line_dict and 'overall' in line_dict and 'summary' in line_dict:
+                lines.append(line_dict)
+                counter += 1
+            if counter == nrows: break
+
+    return pd.DataFrame.from_dict(lines)
 ########################################################################################################################
