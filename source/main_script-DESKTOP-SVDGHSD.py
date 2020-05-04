@@ -26,6 +26,10 @@ nltk.download('tagsets')
 nltk.help.upenn_tagset('WP$')
 '''
 
+#https://www.reviewtrackers.com/reports/online-reviews-survey/
+
+
+
 ########################################################################################################################
 def parse(path):
   g = open(path, "r")
@@ -41,7 +45,7 @@ def getDF(path, nrows):
     for d in parse(path):
         df[i] = d
         i += 1
-        if i % 50000 == 0:
+        if i % 200000 == 0:
             timestamps = calcula_y_muestra_tiempos('BUCLE RAW DATA: i='+str(i)+' de '+str(nrows), timestamps)
         if i == nrows:
             break
@@ -1458,8 +1462,16 @@ def get_stopwords(modo='pre'):
 def mapear_palabras_especiales(array_input):
     retorno = ['not'    if x == 'didn' 
                         or x == 'didnt' 
+                        or x == 'didnot'
+                        or x == 'dident'
                         or x == 'doesn' 
-                        or x == 'doesnt' 
+                        or x == 'doesnt'
+                        or x == 'dosn'
+                        or x == 'doens'
+                        or x == 'dosen'
+                        or x == 'dosnt'
+                        or x == 'doesnot'
+                        or x == 'dosent'
                         or x == 'dont' 
                         or x == 'don' 
                         or x == 'couldn'
@@ -2091,6 +2103,23 @@ def get_respuesta_comprador(lista_resultados_analize, matriz_doc_ws):
     respuesta_comprador.sort_values(by='slope_mod', ascending=False, inplace=True)
     return respuesta_comprador
 ########################################################################################################################
+def get_first_lines_electronics_5(n_rows):
+    nrows = 10
+    with open("../data/Electronics_5.json", "r") as f:
+        counter = 0
+        lines = []
+     
+        for line in f:
+            line_dict = json.loads(line)
+            if 'reviewText' in line_dict and 'overall' in line_dict and 'summary' in line_dict:
+                lines.append(line_dict)
+                counter += 1
+            if counter == nrows: break
+
+    return pd.DataFrame.from_dict(lines)
+########################################################################################################################
+    
+
 
 data_raw_0 = electronics_5_to_raw_data_0(10000)
 
@@ -2126,11 +2155,77 @@ odf = load_latest_odf(nrows=1532805, is_false=True)
 
 
 
+busca_tokens(tokens, ['work'])
+
+
+
+get_close_words_2(odf, 'works_flawlessly')
+
+df = odf
+word = 'works_flawlessly'
+max_distance = 3
+
+timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN GET_CLOSE_WORDS', timestamps=[])
+palabras_antes = []
+palabras_despues  = []
+ratings_antes = []
+ratings_despues = []
+
+i = 0
+for opinion in df.iterrows():
+    texto = opinion[1]['text'].split(', ')
+    if word in set(texto):
+        word_indices = []
+        word_indices.extend([i for i, j in enumerate(texto) if j == word])
+        for indice in word_indices:
+            texto_despues = texto[indice+1:indice+max_distance+1]
+            palabras_despues.extend(texto_despues)
+            ratings_despues.extend(len(texto_despues)*[opinion[1]['rating']])
+            texto_antes = texto[indice-max_distance:indice]
+            palabras_antes.extend(texto_antes)
+            ratings_antes.extend(len(texto_antes)*[opinion[1]['rating']])
+    if i%50000 == 0:
+        timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: i='+str(i)+' DE '+str(len(df)), timestamps=timestamps)
+    i += 1
+
+df_antes = pd.DataFrame(list(zip(palabras_antes, ratings_antes)), columns = ['token', 'rating'])
+df_antes = df_antes.groupby('token').agg({'rating':[np.size, np.mean, np.std]}).fillna(0)
+df_antes = df_antes.drop(remove_stopwords_from_bow_2(df_antes, 'post'))
+df_antes.columns = ['num_occurrences', 'rating_mean', 'rating_sd']
+df_antes = df_antes.sort_values(by=['num_occurrences'], ascending=False)
+
+df_despues = pd.DataFrame(list(zip(palabras_despues, ratings_despues)), columns = ['token', 'rating'])
+df_despues = df_despues.groupby('token').agg({'rating':[np.size, np.mean, np.std]}).fillna(0)
+df_despues = df_despues.drop(remove_stopwords_from_bow_2(df_despues, 'post'))
+df_despues.columns = ['num_occurrences', 'rating_mean', 'rating_sd']
+df_despues = df_despues.sort_values(by=['num_occurrences'], ascending=False)
+
+timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GET_CLOSE_WORDS', timestamps=timestamps)
 
 
 
 
 
+
+
+
+
+
+
+
+
+
+busca_tokens(tokens, ['did_not_work'])
+
+
+
+
+
+
+
+
+
+get_first_lines_electronics_5(10)
 
 
 
@@ -3315,16 +3410,6 @@ sustantivos = words[words['pos'] == 'sustantivo'][['bigram', 'num_occurrences']]
 
 
 
-busca_tokens(tokens, ['drawbacks'])
-r = odf.loc[701359]
-
-
-
-
-
-
-odf.iloc[15]
-
 
 
 
@@ -3338,14 +3423,6 @@ bigrams_sin_hits = extract_bigrams_from_bow(tokens_sin_hits)
 
 
 
-
-
-'not_recognize'
-'signal_strenght'
-get_close_words(odf_sin_hits, 3, 'defective_unit', 8)
-
-
-busca_tokens(tokens, ['defective'])
 
 wswT =   {
             'name':'correct size'
@@ -3373,18 +3450,6 @@ anT_fil, anT_agg = analize_wordset_not_so_naive_4(odf, wswT, show=True)
 
 
 
-odf_17525 = load_latest_odf(17525, True)
-
-
-e = odf_17525.loc[[109]]
-
-
-
-
-
-
-
-get_close_words_2(df=odf, word='defective')
 
 
 
@@ -3394,45 +3459,73 @@ get_close_words_2(df=odf, word='defective')
 
 
 
+https://www.kaggle.com/laowingkin/amazon-fine-food-review-sentiment-analysis
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.dummy import DummyClassifier
+from string import punctuation
+from sklearn import svm
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import nltk
+from nltk import ngrams
+from itertools import chain
+from wordcloud import WordCloud
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-wordsets_names = get_wordsets_names(mat_doc_ws)
-mat_doc_ws_reduced = get_reduced_mat_doc_ws(mat_doc_ws)
-dfv = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
-dfh = dfv.copy()
-
-for tema in wordsets_names:
-    dfv[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()    
-    dfh.loc[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()  
+def text_fit(X, y, model, clf_model, coef_show=1):
     
+    X_c = model.fit_transform(X)
+    print('# features: {}'.format(X_c.shape[1]))
+    X_train, X_test, y_train, y_test = train_test_split(X_c, y, random_state=0)
+    print('# train records: {}'.format(X_train.shape[0]))
+    print('# test records: {}'.format(X_test.shape[0]))
+    clf = clf_model.fit(X_train, y_train)
+    acc = clf.score(X_test, y_test)
+    print ('Model Accuracy: {}'.format(acc))
+    
+    if coef_show == 1: 
+        w = model.get_feature_names()
+        coef = clf.coef_.tolist()[0]
+        coeff_df = pd.DataFrame({'Word' : w, 'Coefficient' : coef})
+        coeff_df = coeff_df.sort_values(['Coefficient', 'Word'], ascending=[0, 1])
+        print('')
+        print('-Top 20 positive-')
+        print(coeff_df.head(20).to_string(index=False))
+        print('')
+        print('-Top 20 negative-')        
+        print(coeff_df.tail(20).to_string(index=False))
+    
+    
+odf = load_latest_odf(214475, True)
 
 
-dfv2 = dfv.copy()
-dfh2 = dfh.copy()
-
-for i in range(0, len(wordsets_names)):
-    #for j in range(i, len(wordsets_names)):
-    dfv2.iloc[i][i] = 0 #df.iloc[j][i]
-    dfh2.iloc[i][i] = 0
+#df = odf[odf['rating'] != 3]
+X = odf['text']
+y_dict = {1:0, 2:0, 3:0, 4:1, 5:1}
+y = odf['rating'].map(y_dict)
 
 
-sns.heatmap(dfv2, cmap=get_heatmap_cmap())
-sns.heatmap(dfh2, cmap=get_heatmap_cmap())
+    
+text_fit(X, y, CountVectorizer(), LogisticRegression())
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
