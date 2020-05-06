@@ -25,7 +25,6 @@ nltk.download('averaged_perceptron_tagger')
 nltk.download('tagsets')
 nltk.help.upenn_tagset('WP$')
 '''
-
 ########################################################################################################################
 def parse(path):
   g = open(path, "r")
@@ -1968,7 +1967,7 @@ def busca_tokens(bow, words):
     tokens_a_retornar = []
     for word in words:
         for elemento in set(bow['bigram']): # como set el rendimiento mejora espectacularmente
-            if elemento.split('_').count(word):
+            if word == elemento or elemento.split('_').count(word):
                 tokens_a_retornar.append(elemento)
     timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN BUSCA_TOKENS', timestamps)
     return tokens_a_retornar
@@ -2183,7 +2182,7 @@ perform_eda(data_raw_1, 'text_length_per_rating')
 
 odf_false, odf = execute_preprocessing_pipeline(data_raw_1)
 odf = execute_preprocessing_pipeline(data_raw_1, False)
-odf = load_latest_odf(nrows=214475, is_false=True)
+odf = load_latest_odf(nrows=1532805, is_false=True)
 #odf = load_latest_odf(nrows=1532805, is_false=False)
 #odf_false = load_latest_odf(nrows=1532805, is_false=True)
 
@@ -2258,9 +2257,10 @@ busca_tokens(tokens, ['did_not_work'])
 
 
 
-
-
-
+trigrams = []
+for each in tokens.iterrows():
+    if len(each[1]['bigram'].split('_')) > 2:
+        trigrams.append(each[1]['bigram'])
 
 
 
@@ -3496,7 +3496,7 @@ wswT =   {
             'name':'correct size'
             ,'wordset': 
             {
-                'ands': ['plug_play'],
+                'ands': ['did_not_work'],
                 'ors' :
                     [
                     {
