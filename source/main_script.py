@@ -2156,7 +2156,7 @@ def get_first_lines_electronics_5(n_rows):
     
 
 
-data_raw_0 = electronics_5_to_raw_data_0(10000)
+data_raw_0 = electronics_5_to_raw_data_0(100000)
 
 perform_eda(data_raw_0, 'rating_distribution')
 perform_eda(data_raw_0, 'rating_distribution_item')
@@ -2182,7 +2182,7 @@ perform_eda(data_raw_1, 'text_length_per_rating')
 
 odf_false, odf = execute_preprocessing_pipeline(data_raw_1)
 odf = execute_preprocessing_pipeline(data_raw_1, False)
-odf = load_latest_odf(nrows=1532805, is_false=True)
+odf = load_latest_odf(nrows=214475, is_false=True)
 #odf = load_latest_odf(nrows=1532805, is_false=False)
 #odf_false = load_latest_odf(nrows=1532805, is_false=True)
 
@@ -3582,3 +3582,315 @@ sns.heatmap(dfh2, cmap=get_heatmap_cmap())
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.dummy import DummyClassifier
+from string import punctuation
+from sklearn import svm
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import nltk
+from nltk import ngrams
+from itertools import chain
+from wordcloud import WordCloud
+
+
+
+from sklearn import metrics    
+from sklearn.tree import DecisionTreeClassifier
+    
+    
+#https://www.datacamp.com/community/tutorials/understanding-logistic-regression-python
+#https://www.kaggle.com/laowingkin/amazon-fine-food-review-sentiment-analysis
+# CONFUSION MATRIX
+def matriz_confusion(clf_model_trained, y_test):
+    y_pred = clf_model_trained.predict(X_test)
+    cnf_matrix = metrics.confusion_matrix(y_test, y_pred)
+    class_names = [0, 1]
+    fig, ax = plt.subplots()
+    tick_marks = np.arange(len(class_names))
+    plt.xticks(tick_marks, class_names)
+    plt.yticks(tick_marks, class_names)
+    sns.heatmap(pd.DataFrame(cnf_matrix), annot=True, cmap="YlGnBu", fmt='g')
+    ax.xaxis.set_label_position("top")
+    plt.tight_layout()
+    plt.title('Confusion matrix', y=1.1)
+    plt.ylabel('Actual label')
+    plt.xlabel('Predicted label')
+    print("Accuracy:",metrics.accuracy_score(y_test, y_pred))
+    print("Precision:",metrics.precision_score(y_test, y_pred))
+    print("Recall:",metrics.recall_score(y_test, y_pred)) 
+    
+def curva_roc(clf_model, X_test, y_test):
+    y_pred_proba = clf_model.predict_proba(X_test)[::,1]
+    fpr, tpr, _ = metrics.roc_curve(y_test,  y_pred_proba)
+    auc = metrics.roc_auc_score(y_test, y_pred_proba)
+    plt.plot(fpr,tpr,label="data 1, auc="+str(auc))
+    plt.legend(loc=4)
+    plt.show()
+    
+# Modelo predictivo
+clf_model = LogisticRegression()
+clf_model = DecisionTreeClassifier()
+
+cv = CountVectorizer(stop_words='english')
+cv = CountVectorizer()
+
+# X,y para el caso de texto
+#df = odf[odf['rating'] != 3]
+X = odf['text']
+y_dict = {1:0, 2:0, 3:0, 4:1, 5:1}
+y = odf['rating'].map(y_dict)
+X = cv.fit_transform(X)
+
+# X,y para el caso de temas
+#mat_doc_ws_2 = mat_doc_ws[(mat_doc_ws['total_wordsets'] > 0) & (mat_doc_ws['rating'] != 3)]
+mat_doc_ws_2 = mat_doc_ws[mat_doc_ws['total_wordsets'] > 0]
+
+X = mat_doc_ws_2[get_wordsets_names(mat_doc_ws)]
+y = mat_doc_ws_2['rating'].map(y_dict)
+
+
+# Split y entrenamiento
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+clf_model_trained = clf_model.fit(X_train, y_train)
+
+
+
+matriz_confusion(clf_model_trained, y_test)
+curva_roc(clf_model_trained, X_test, y_test)
+
+
+
+
+y_pred_proba = clf_model.predict_proba(cv.transform(['great']))
+
+
+
+
+
+
+
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+y_dict = {1:0, 2:0, 3:0, 4:1, 5:1}
+
+clf_model_texto = LogisticRegression()
+clf_model_temas = LogisticRegression()
+clf_model_temas = DecisionTreeClassifier()
+cv = CountVectorizer()
+wordset_names = get_wordsets_names(mat_doc_ws)
+
+
+mat_doc_ws_2 = mat_doc_ws[mat_doc_ws['total_wordsets'] > 0]
+docs_con_tema = list(mat_doc_ws_2.index.values)
+
+
+# X,y para el caso de texto
+df = odf.loc[docs_con_tema]
+X_texto = cv.fit_transform(df['text'])
+y_texto = df['rating'].map(y_dict)
+
+
+# X,y para el caso de temas
+X_temas = mat_doc_ws_2[wordset_names]
+y_temas = mat_doc_ws_2['rating'].map(y_dict)
+
+
+# Split y entrenamiento
+X_train_texto, X_test_texto, y_train_texto, y_test_texto = train_test_split(X_texto, y_texto, random_state=0)
+clf_model_texto_trained = clf_model_texto.fit(X_train_texto, y_train_texto)
+X_train_temas, X_test_temas, y_train_temas, y_test_temas = train_test_split(X_temas, y_temas, random_state=0)
+clf_model_temas_trained = clf_model_temas.fit(X_train_temas, y_train_temas)
+
+
+
+
+def map_rating(rating, mapping):
+    return mapping[rating]
+
+rows = []
+for i in docs_con_tema:
+    doc_number = df.loc[i]['doc_number']
+    true_rating = map_rating(df.loc[i]['rating'], y_dict)
+    y_pred_texto = clf_model_texto_trained.predict_proba(cv.transform([df.loc[i]['text']]))
+    text_prob_0 = y_pred_texto[0][0]
+    text_prob_1 = y_pred_texto[0][1]
+    text_dif_prob = abs(text_prob_0-text_prob_1)
+    
+    y_pred_temas = clf_model_temas_trained.predict_proba([mat_doc_ws_2.loc[i][wordset_names]])
+    temas_prob_0 = y_pred_temas[0][0]
+    temas_prob_1 = y_pred_temas[0][1]
+    temas_dif_prob = abs(temas_prob_0-temas_prob_1)
+    
+    y_pred = y_pred_texto+y_pred_temas
+    rating_pred_0 = np.argmax(y_pred)
+    
+    if text_dif_prob > temas_dif_prob:
+        rating_pred_1 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_1 = np.argmax(y_pred_temas)
+        
+    if  text_dif_prob < 0.1:
+        rating_pred_2 = np.argmax(y_pred_temas)
+    else:
+        rating_pred_2 = np.argmax(y_pred_texto)
+        
+    if  text_dif_prob < 0.2:
+        rating_pred_3 = np.argmax(y_pred_temas)
+    else:
+        rating_pred_3 = np.argmax(y_pred_texto)
+        
+    if  text_dif_prob < 0.3:
+        rating_pred_4 = np.argmax(y_pred_temas)
+    else:
+        rating_pred_4 = np.argmax(y_pred_texto)
+        
+    if  text_dif_prob < 0.4:
+        rating_pred_5 = np.argmax(y_pred_temas)
+    else:
+        rating_pred_5 = np.argmax(y_pred_texto)
+        
+    if  temas_dif_prob < 0.1:
+        rating_pred_6 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_6 = np.argmax(y_pred_temas)
+        
+    if  temas_dif_prob < 0.2:
+        rating_pred_7 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_7 = np.argmax(y_pred_temas)
+        
+    if  temas_dif_prob < 0.3:
+        rating_pred_8 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_8 = np.argmax(y_pred_temas)
+        
+    if  temas_dif_prob < 0.4:
+        rating_pred_9 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_9 = np.argmax(y_pred_temas)
+        
+    if  temas_dif_prob < 0.5:
+        rating_pred_10 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_10 = np.argmax(y_pred_temas)
+        
+    if  temas_dif_prob < 0.6:
+        rating_pred_11 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_11 = np.argmax(y_pred_temas)
+        
+    if  temas_dif_prob < 0.7:
+        rating_pred_12 = np.argmax(y_pred_texto)
+    else:
+        rating_pred_12 = np.argmax(y_pred_temas)
+    
+    rows.append({'doc_number':doc_number,
+                 'true_rating':true_rating,
+                 'text_prob_0':text_prob_0,
+                 'text_prob_1':text_prob_1,
+                 'text_dif_prob':text_dif_prob,
+                 'rating_text':np.argmax(y_pred_texto),
+                 'temas_prob_0':temas_prob_0,
+                 'temas_prob_1':temas_prob_1,
+                 'temas_dif_prob':temas_dif_prob,
+                 'rating_temas':np.argmax(y_pred_temas),
+                 'rating_pred_0':rating_pred_0,
+                 'rating_pred_1':rating_pred_1,
+                 'rating_pred_2':rating_pred_2,
+                 'rating_pred_3':rating_pred_3,
+                 'rating_pred_4':rating_pred_4,
+                 'rating_pred_5':rating_pred_5,
+                 'rating_pred_6':rating_pred_6,
+                 'rating_pred_7':rating_pred_7,
+                 'rating_pred_8':rating_pred_8,
+                 'rating_pred_9':rating_pred_9,
+                 'rating_pred_10':rating_pred_10,
+                 'rating_pred_11':rating_pred_11,
+                 'rating_pred_12':rating_pred_12})
+pred_df = pd.DataFrame.from_dict(rows)
+
+pred_df['acierto_text'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_text']), axis=1)
+pred_df['acierto_temas'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_temas']), axis=1)
+pred_df['acierto_0'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_0']), axis=1)
+pred_df['acierto_1'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_1']), axis=1)
+pred_df['acierto_2'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_2']), axis=1)
+pred_df['acierto_3'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_3']), axis=1)
+pred_df['acierto_4'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_4']), axis=1)
+pred_df['acierto_5'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_5']), axis=1)
+pred_df['acierto_6'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_6']), axis=1)
+pred_df['acierto_7'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_7']), axis=1)
+pred_df['acierto_8'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_8']), axis=1)
+pred_df['acierto_9'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_9']), axis=1)
+pred_df['acierto_10'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_10']), axis=1)
+pred_df['acierto_11'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_11']), axis=1)
+pred_df['acierto_12'] =  pred_df.apply(lambda row: int(row['true_rating']==row['rating_pred_12']), axis=1)
+
+pred_df['acierto_0'].mean()
+pred_df['acierto_1'].mean()
+pred_df['acierto_2'].mean()
+pred_df['acierto_3'].mean()
+pred_df['acierto_4'].mean()
+pred_df['acierto_5'].mean()
+pred_df['acierto_6'].mean()
+pred_df['acierto_7'].mean()
+pred_df['acierto_8'].mean()
+pred_df['acierto_9'].mean()
+pred_df['acierto_10'].mean()
+pred_df['acierto_11'].mean()
+pred_df['acierto_12'].mean()
+pred_df['acierto_text'].mean()
+pred_df['acierto_temas'].mean()
+
+
+
+def evaluate(prediction_df, metrica='rating_text'):
+    TN = len(prediction_df[(prediction_df['true_rating']==0) & (prediction_df[metrica]==0)])
+    FN = len(prediction_df[(prediction_df['true_rating']==1) & (prediction_df[metrica]==0)])
+    TP = len(prediction_df[(prediction_df['true_rating']==1) & (prediction_df[metrica]==1)])
+    FP = len(prediction_df[(prediction_df['true_rating']==0) & (prediction_df[metrica]==1)])
+    
+    ACC = (TP+TN)/(TP+TN+FP+FN)
+    TPR = TP/(TN+FP)
+    FNR = FN/(FN+TP)
+    FPR = FP/(FP+TN)
+    print('ACC:', ACC)
+    print('TPR:', TPR)
+    print('FNR:', FNR)
+    print('FPR:', FPR)
+    
+evaluate(pred_df, 'rating_pred_5')
+
+# La conclusión a la que se llega dentro de este bloque es que la búsqueda por temas expone tendencias, pero no sirve
+# para la predicción. Aunque los temas positivos tengan una mayoría de opiniones buenas, siguen teniendo una porción
+# de reviews negativas. Esto es así y es correcto, sencillamente los temas no valen para prededir puntuaciones
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
