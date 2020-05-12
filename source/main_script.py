@@ -3622,6 +3622,8 @@ from sklearn.tree import DecisionTreeClassifier
     
 #https://www.datacamp.com/community/tutorials/understanding-logistic-regression-python
 #https://www.kaggle.com/laowingkin/amazon-fine-food-review-sentiment-analysis
+#https://towardsdatascience.com/build-and-compare-3-models-nlp-sentiment-prediction-67320979de61
+#https://medium.com/@ageitgey/natural-language-processing-is-fun-part-3-explaining-model-predictions-486d8616813c
 # CONFUSION MATRIX
 def matriz_confusion(clf_model_trained, y_test):
     y_pred = clf_model_trained.predict(X_test)
