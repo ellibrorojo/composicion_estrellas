@@ -18,14 +18,33 @@ import seaborn as sns
 import random
 from scipy import stats
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
 #import math as math
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.dummy import DummyClassifier
+from string import punctuation
+from sklearn import svm
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import nltk
+from nltk import ngrams
+from itertools import chain
+from wordcloud import WordCloud
+from sklearn import metrics    
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+import torch
+
 '''
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('tagsets')
 nltk.help.upenn_tagset('WP$')
 '''
-
 ########################################################################################################################
 def parse(path):
   g = open(path, "r")
@@ -1968,7 +1987,7 @@ def busca_tokens(bow, words):
     tokens_a_retornar = []
     for word in words:
         for elemento in set(bow['bigram']): # como set el rendimiento mejora espectacularmente
-            if elemento.split('_').count(word):
+            if word == elemento or elemento.split('_').count(word):
                 tokens_a_retornar.append(elemento)
     timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN BUSCA_TOKENS', timestamps)
     return tokens_a_retornar
@@ -2154,3 +2173,69 @@ def get_first_lines_electronics_5(n_rows):
 
     return pd.DataFrame.from_dict(lines)
 ########################################################################################################################
+def map_rating(rating_1_based):
+    mapping = {1:0, 2:1, 3:2, 4:3, 5:4}
+    if(isinstance(rating_1_based, (float, int, np.int64))):
+        return mapping[rating_1_based]
+    if(isinstance(rating_1_based, pd.Series)):
+        return rating_1_based.map(mapping)
+########################################################################################################################
+def unmap_rating(rating_0_based):
+    mapping = {0:1, 1:2, 2:3, 3:4, 4:5}
+    if(isinstance(rating_0_based, (float, int, np.int64))):
+        return mapping[rating_0_based]
+    if(isinstance(rating_0_based, pd.Series)):
+        return rating_0_based.map(mapping)
+########################################################################################################################      
+def evaluar_modelo_reg(modelo_entrenado, X_test, y_test):
+   
+    y_pred = modelo_entrenado.predict(X_test)
+    y_diff = abs(y_pred-y_test)
+    aggr = y_diff.groupby(y_diff).count()
+    
+    evaluar_modelo_core(aggr, y_test, y_pred)
+########################################################################################################################
+def evaluar_modelo_lstm(modelo_entrenado, dataloader):
+   
+    y_pred = []
+    for x, y, l in dataloader:   
+        y_pred.extend((torch.max(modelo_entrenado(x.long()), 1)[1]).tolist())
+    y_diff = abs(pd.Series(y_pred)-pd.Series(dataloader.dataset.y))
+    aggr = y_diff.groupby(y_diff).count()
+
+    evaluar_modelo_core(aggr, dataloader.dataset.y, y_pred)
+########################################################################################################################
+def evaluar_modelo_core(aggr, y_true, y_pred):
+    print_simple_histogram(aggr)
+    
+    total_0 = aggr[0]
+    total_1 = aggr[1]
+    total_2 = aggr[2]
+    total_3 = aggr[3]
+    total_4 = aggr[4]
+    
+    ratio_0_acum = (total_0)/aggr.sum()
+    ratio_1_acum = (total_0+total_1)/aggr.sum()
+    ratio_2_acum = (total_0+total_1+total_2)/aggr.sum()
+    ratio_3_acum = (total_0+total_1+total_2+total_3)/aggr.sum()
+    ratio_4_acum = (total_0+total_1+total_2+total_3+total_4)/aggr.sum()
+    
+    print("0: %.2f (%2d)" % (ratio_0_acum, total_0))
+    print("1: %.2f (%2d)" % (ratio_1_acum, total_1))
+    print("2: %.2f (%2d)" % (ratio_2_acum, total_2))
+    print("3: %.2f (%2d)" % (ratio_3_acum, total_3))
+    print("4: %.2f (%2d)" % (ratio_4_acum, total_4))
+    print("RMSE: %.2f" % (np.sqrt(mean_squared_error(y_pred, y_true))))
+
+
+
+
+########################################################################################################################
+def predict_from_text(modelo_entrenado, cv_entrenado, text):
+    return unmap_rating(np.argmax(modelo_entrenado.predict_proba(cv_entrenado.transform([text]))))
+########################################################################################################################
+def get_all_topic_names(topics):
+    names = []
+    for topic_name in topics:
+        names.append(topic_name)
+    return names
