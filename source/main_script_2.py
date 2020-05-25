@@ -4,7 +4,6 @@ Created on Thu Apr  9 18:34:20 2020
 
 @author: javie
 """
-import json
 import pandas as pd
 import numpy as np
 import gensim
@@ -35,11 +34,12 @@ from nltk.stem import WordNetLemmatizer
 from nltk import ngrams
 from itertools import chain
 from wordcloud import WordCloud
-
+from collections import Counter
+#import utils
 import utils
 import topics_holder as th
 
-data_raw_0 = utils.electronics_5_to_raw_data_0()
+data_raw_0 = utils.electronics_5_to_raw_data_0(10000)
 
 utils.perform_eda(data_raw_0, 'rating_distribution')
 utils.perform_eda(data_raw_0, 'rating_distribution_item')
@@ -63,28 +63,61 @@ utils.perform_eda(data_raw_1, 'summary_review_length_comparison_per_rating')
 utils.perform_eda(data_raw_1, 'text_length_per_rating')
 
 
-odf_false, odf = utils.execute_preprocessing_pipeline(data_raw_1)
+odf = utils.execute_preprocessing_pipeline(data_raw_1)
 odf = utils.execute_preprocessing_pipeline(data_raw_1, False)
 odf = utils.load_latest_odf(nrows=214475, is_false=True)
-#odf = load_latest_odf(nrows=1532805, is_false=False)
-#odf_false = load_latest_odf(nrows=1532805, is_false=True)
+odf = utils.load_latest_odf(nrows=17525, is_false=True)
+odf = utils.load_latest_odf(nrows=1532805, is_false=True)
 
 
-tokens = utils.generate_bow(odf, False, show=False)
-#bigrams = utils.extract_bigrams_from_bow(tokens)
+#tokens = utils.generate_bow(odf, False, show=False)
+#bigrams = utils.extract_bigrams_from_bow(tokens_counter)
 
-topics = th.generate_topics(tokens)
+####################################################
+####################################################
+
+# Construimos un contador para almacenar en cuántas ocasiones aparece cada token
+token_counter = Counter()
+for index, row in odf.iterrows():
+    token_counter.update(row['text'].split(', '))
+
+
+print("Cantidad de tokens (distintos) antes de eliminar los poco frecuentes:", len(token_counter.keys()))
+for word in list(token_counter):
+    if token_counter[word] < 2:
+        del token_counter[word]
+print("Cantidad de tokens (distintos) tras eliminar los poco frecuentes:    ", len(token_counter.keys()))
+
+
+#Construimos el diccionario
+tokens_coded = {"":0, "UNK":1}
+words = ["", "UNK"]
+for word in token_counter:
+    tokens_coded[word] = len(words)
+    words.append(word) 
+
+
+
+
+
+####################################################
+####################################################
+
+
+
+topics = th.generate_topics(token_counter)
+
 topics_names = utils.get_all_topic_names(topics)
 
 lista_resultados_analize = []
 for topic_name in topics_names:
-    res_fil, res_agg = utils.analize_wordset_not_so_naive_4(odf, th.get_topic_by_name(topics, topic_name), False)
+    res_fil, res_agg = utils.analize_wordset(odf, th.get_topic_by_name(topics, topic_name), False)
     lista_resultados_analize.append({'name':topic_name, 'resultados': res_fil, 'agregados': res_agg})
 
 
 mat_doc_ws, mat_doc_ws_agg = utils.analize_wordset_occurrences(odf, lista_resultados_analize)
 
-utils.visualize_wordsets_network_6(mat_doc_ws, group_size=500, k=0.3, ratings='F')
+utils.visualize_wordsets_network_6(mat_doc_ws, group_size=5, k=0.3, ratings='F')
 
 df_sharing = utils.get_sharing_matrix_2(mat_doc_ws)
 
@@ -110,7 +143,7 @@ cv = CountVectorizer()
 #cv = TfidfVectorizer(ngram_range=(1, 2),stop_words = 'english')
 
 X_texto = cv.fit_transform(odf['text'])
-y_texto = utils.map_rating(odf['rating'])
+y_texto = odf['rating_0']
 
 X_train_texto, X_test_texto, y_train_texto, y_test_texto = train_test_split(X_texto, y_texto, random_state=2020)
 clf_model_texto_trained = clf_model_texto.fit(X_train_texto, y_train_texto)
@@ -133,7 +166,7 @@ y_temas = utils.map_rating(mat_doc_ws_2['rating'])
 X_train_temas, X_test_temas, y_train_temas, y_test_temas = train_test_split(X_temas, y_temas, random_state=2020)
 clf_model_temas_trained = clf_model_temas.fit(X_train_temas, y_train_temas)
 
-utils.evaluar_modelo(clf_model_temas_trained, X_test_temas, y_test_temas)
+utils.evaluar_modelo_reg(clf_model_temas_trained, X_test_temas, y_test_temas)
 
 
 
@@ -185,3 +218,16 @@ utils.evaluar_modelo(clf_model_temas_trained, X_test_temas, y_test_temas)
 ########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################
+
+
+
+
+
+    
+tokens = utils.generate_bow(odf)
+
+utils.busca_tokens(token_counter, ['work'])
+
+
+
+

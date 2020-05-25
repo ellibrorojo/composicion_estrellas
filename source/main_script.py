@@ -18,7 +18,27 @@ import seaborn as sns
 import random
 from scipy import stats
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
 #import math as math
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.dummy import DummyClassifier
+from string import punctuation
+from sklearn import svm
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import nltk
+from nltk import ngrams
+from itertools import chain
+from wordcloud import WordCloud
+from sklearn import metrics    
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+
 '''
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
@@ -2153,10 +2173,54 @@ def get_first_lines_electronics_5(n_rows):
 
     return pd.DataFrame.from_dict(lines)
 ########################################################################################################################
+def map_rating(rating_1_based):
+    mapping = {1:0, 2:1, 3:2, 4:3, 5:4}
+    if(isinstance(rating_1_based, (float, int, np.int64))):
+        return mapping[rating_1_based]
+    if(isinstance(rating_1_based, pd.Series)):
+        return rating_1_based.map(mapping)
+########################################################################################################################
+def unmap_rating(rating_0_based):
+    mapping = {0:1, 1:2, 2:3, 3:4, 4:5}
+    if(isinstance(rating_0_based, (float, int, np.int64))):
+        return mapping[rating_0_based]
+    if(isinstance(rating_0_based, pd.Series)):
+        return rating_0_based.map(mapping)
+########################################################################################################################      
+def evaluar_modelo(modelo_entrenado, X_test, y_test):
+   
+    y_pred = modelo_entrenado.predict(X_test)
+    y_diff = abs(y_pred-y_test)
+    aggr = y_diff.groupby(y_diff).count()
+    print_simple_histogram(aggr)
     
+    total_0 = aggr[0]
+    total_1 = aggr[1]
+    total_2 = aggr[2]
+    total_3 = aggr[3]
+    total_4 = aggr[4]
+    
+    ratio_0_acum = (total_0)/aggr.sum()
+    ratio_1_acum = (total_0+total_1)/aggr.sum()
+    ratio_2_acum = (total_0+total_1+total_2)/aggr.sum()
+    ratio_3_acum = (total_0+total_1+total_2+total_3)/aggr.sum()
+    ratio_4_acum = (total_0+total_1+total_2+total_3+total_4)/aggr.sum()
+    
+    print("0: %.2f (%2d)" % (ratio_0_acum, total_0))
+    print("1: %.2f (%2d)" % (ratio_1_acum, total_1))
+    print("2: %.2f (%2d)" % (ratio_2_acum, total_2))
+    print("3: %.2f (%2d)" % (ratio_3_acum, total_3))
+    print("4: %.2f (%2d)" % (ratio_4_acum, total_4))
+
+    return np.sqrt(mean_squared_error(y_pred, y_test))
+########################################################################################################################
+def predict_from_text(modelo_entrenado, cv_entrenado, text):
+    return unmap_rating(np.argmax(modelo_entrenado.predict_proba(cv_entrenado.transform([text]))))
+########################################################################################################################
 
 
-data_raw_0 = electronics_5_to_raw_data_0(100000)
+
+data_raw_0 = electronics_5_to_raw_data_0()
 
 perform_eda(data_raw_0, 'rating_distribution')
 perform_eda(data_raw_0, 'rating_distribution_item')
@@ -3140,8 +3204,8 @@ wsw6_neg =  {
 an6_neg_fil, an6_neg_agg = analize_wordset_not_so_naive_4(odf, wsw6_neg, True)
 
 
-get_close_words_2(odf, 'warranty_repair')
-busca_tokens(tokens, ['for'])
+#get_close_words_2(odf, 'warranty_repair')
+#busca_tokens(tokens, ['for'])
 
 
 
@@ -3594,30 +3658,6 @@ sns.heatmap(dfh2, cmap=get_heatmap_cmap())
 
 
 
-
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.dummy import DummyClassifier
-from string import punctuation
-from sklearn import svm
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
-import nltk
-from nltk import ngrams
-from itertools import chain
-from wordcloud import WordCloud
-
-
-
-from sklearn import metrics    
-from sklearn.tree import DecisionTreeClassifier
     
     
 #https://www.datacamp.com/community/tutorials/understanding-logistic-regression-python
@@ -3658,6 +3698,7 @@ clf_model = DecisionTreeClassifier()
 cv = CountVectorizer(stop_words='english')
 cv = CountVectorizer()
 
+
 # X,y para el caso de texto
 #df = odf[odf['rating'] != 3]
 X = odf['text']
@@ -3685,6 +3726,74 @@ curva_roc(clf_model_trained, X_test, y_test)
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import fastText
+import re
+
+def strip_formatting(string):
+    string = string.lower()
+    string = re.sub(r"([.!?,'/()])", r" \1 ", string)
+    return string
+
+# Reviews to check
+reviews = [
+    "This restaurant literally changed my life. This is the best food I've ever eaten!",
+    "I hate this place so much. They were mean to me.",
+    "I don't know. It was ok, I guess. Not really sure what to say."
+]
+
+# Pre-process the text of each review so it matches the training format
+preprocessed_reviews = list(map(strip_formatting, reviews))
+
+# Load the model
+classifier = fastText.load_model('reviews_model_ngrams.bin')
+
+# Get fastText to classify each review with the model
+labels, probabilities = classifier.predict(preprocessed_reviews, 1)
+
+# Print the results
+for review, label, probability in zip(reviews, labels, probabilities):
+    stars = int(label[0][-1])
+
+    print("{} ({}% confidence)".format("☆" * stars, int(probability[0] * 100)))
+    print(review)
+    print()
+
+
 y_pred_proba = clf_model.predict_proba(cv.transform(['great']))
 
 
@@ -3705,6 +3814,7 @@ clf_model_texto = LogisticRegression()
 clf_model_temas = LogisticRegression()
 clf_model_temas = DecisionTreeClassifier()
 cv = CountVectorizer()
+cv = TfidfVectorizer(ngram_range=(1, 2),stop_words = 'english')
 wordset_names = get_wordsets_names(mat_doc_ws)
 
 
@@ -3891,6 +4001,104 @@ evaluate(pred_df, 'rating_pred_5')
 # La conclusión a la que se llega dentro de este bloque es que la búsqueda por temas expone tendencias, pero no sirve
 # para la predicción. Aunque los temas positivos tengan una mayoría de opiniones buenas, siguen teniendo una porción
 # de reviews negativas. Esto es así y es correcto, sencillamente los temas no valen para prededir puntuaciones
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+########################################################################################################################
+
+# PROBAMOS CON TEXTO, DECISIONTREECLASSIFIER Y EVALUAMOS CON LA MEDIA DEL ERROR, NO LA ACCURACY
+clf_model_texto = DecisionTreeClassifier()
+clf_model_texto = RandomForestClassifier()
+cv = CountVectorizer()
+#cv = TfidfVectorizer(ngram_range=(1, 2),stop_words = 'english')
+
+X_texto = cv.fit_transform(odf['text'])
+y_texto = map_rating(odf['rating'])
+
+X_train_texto, X_test_texto, y_train_texto, y_test_texto = train_test_split(X_texto, y_texto, random_state=2020)
+clf_model_texto_trained = clf_model_texto.fit(X_train_texto, y_train_texto)
+
+
+evaluar_modelo(clf_model_texto_trained, X_test_texto, y_test_texto)
+evaluar_modelo(clf_model_texto_trained, X_train_texto, y_train_texto)
+
+
+predict_from_text(clf_model_texto_trained, cv, 'This product is really bad')
+
+
+
+
+
+
+
+
+clf_model_temas = DecisionTreeClassifier()
+clf_model_temas = RandomForestClassifier()
+wordset_names = get_wordsets_names(mat_doc_ws)
+
+mat_doc_ws_2 = mat_doc_ws[mat_doc_ws['total_wordsets'] > 0]
+docs_con_tema = list(mat_doc_ws_2.index.values)
+
+X_temas = mat_doc_ws_2[wordset_names]
+y_temas = map_rating(mat_doc_ws_2['rating'])
+
+X_train_temas, X_test_temas, y_train_temas, y_test_temas = train_test_split(X_temas, y_temas, random_state=2020)
+clf_model_temas_trained = clf_model_temas.fit(X_train_temas, y_train_temas)
+
+evaluar_modelo(clf_model_temas_trained, X_test_temas, y_test_temas)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# TRAS INTENTAR PROBAR FASTTEXT Y VER QUE SOLO VALE PARA MAC Y LINUX, BUSCAMOS ALTERNATIVAS:
+#https://towardsdatascience.com/multiclass-text-classification-using-lstm-in-pytorch-eac56baed8df
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ########################################################################################################################
 ########################################################################################################################
 ########################################################################################################################

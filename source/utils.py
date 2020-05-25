@@ -20,6 +20,7 @@ from scipy import stats
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 #import math as math
+from nltk.corpus import stopwords
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -38,8 +39,20 @@ from sklearn import metrics
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 import torch
+import torch.nn as nn
+import re
+import spacy
+#import jovian
+from collections import Counter
+from torch.utils.data import Dataset, DataLoader
+import torch.nn.functional as F
+import string
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from sklearn.metrics import mean_squared_error
+
 
 '''
+nltk.download('stopwords')
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 nltk.download('tagsets')
@@ -52,7 +65,7 @@ def parse(path):
     yield json.loads(l)
 ########################################################################################################################
 def getDF(path, nrows):
-    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN GETDF', timestamps=[])
+    #timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN GETDF', timestamps=[])
     if nrows == 9999999999:
         nrows = 6737497
     i = 0
@@ -60,11 +73,11 @@ def getDF(path, nrows):
     for d in parse(path):
         df[i] = d
         i += 1
-        if i % 500000 == 0:
-            timestamps = calcula_y_muestra_tiempos('BUCLE RAW DATA: i='+str(i)+' de '+str(nrows), timestamps)
+        #if i % 500000 == 0:
+            #timestamps = calcula_y_muestra_tiempos('BUCLE RAW DATA: i='+str(i)+' de '+str(nrows), timestamps)
         if i == nrows:
             break
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GETDF', timestamps)
+    #timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GETDF', timestamps)
     return pd.DataFrame.from_dict(df, orient='index')
 ########################################################################################################################
 def electronics_5_to_raw_data_0(nrows=9999999999):
@@ -79,22 +92,11 @@ def electronics_5_to_raw_data_0(nrows=9999999999):
     df = df.rename(columns={'overall':'rating', 'reviewerID':'user_id', 'asin':'item_id', 'reviewText':'review'})
     timestamps = calcula_y_muestra_tiempos('SE PROCEDE A SUSTITUIR LOS NANS POR CADENAS VACÍAS', timestamps)
     df = df.fillna('')
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN ELECTRONICS_5_TO_RAW_DATA_0', timestamps)
+    calcula_y_muestra_tiempos('FIN FUNCIÓN ELECTRONICS_5_TO_RAW_DATA_0', timestamps)
+    
     return df
 ########################################################################################################################
-def print_simple_histogram(data_agg, labels=None, title='Title'):
-    #plt.ylabel('ylabel')
-    #plt.xlabel('xlabel')
-
-    '''
-    x_values = data_agg.index.values
-    fig, ax = plt.subplots()
-    if len(x_values) > 5:
-        fig.autofmt_xdate(rotation=45)
-    #ax.set_xticklabels(x_values, rotation=45, ha='center')
-    ax.bar(x_values, data_agg, color='blue')
-    plt.show()'''
-    
+def print_simple_histogram(data_agg, labels=None, title='Title'):    
     x_values = list(data_agg.index.values)
     x_values = list(map(int, x_values))
     fig, ax = plt.subplots()
@@ -147,42 +149,23 @@ def strfdelta(tdelta, fmt='{H:02}h {M:02}m {S:02}s', inputtype='timedelta'):
             values[field], remainder = divmod(remainder, constants[field])
     return f.format(fmt, **values)
 ########################################################################################################################
-'''def timestamps = calcula_y_muestra_tiempos_2(texto):
-    timestamps.append(datetime.now())
-    tot = len(timestamps)
-    #↨print('::::', texto, '::::', strfdelta(timestamps[tot-1]-timestamps[tot-2]))
-    if ['INICIO', 'FIN'].count(texto.split(' ')[0]) > 0:
-        print((strfdelta(timestamps[tot-1]-timestamps[tot-2])+' ____ '+texto+' ').ljust(100, '_'))
-    else:
-        print((strfdelta(timestamps[tot-1]-timestamps[tot-2])+' :::: '+texto+' ').ljust(100, ':'))'''
-########################################################################################################################
 def calcula_y_muestra_tiempos(texto, timestamps):
     timestamps.append(datetime.now())
     tot = len(timestamps)
-    if ['INICIO', 'FIN'].count(texto.split(' ')[0]) > 0:
-        print((strfdelta(timestamps[tot-1]-timestamps[tot-2])+' ____ '+texto+' ').ljust(100, '_'))
-    else:
-        print((strfdelta(timestamps[tot-1]-timestamps[tot-2])+' :::: '+texto+' ').ljust(100, ':'))
-    return timestamps
-########################################################################################################################
+    
+    is_inicio = ['INICIO'].count(texto.split(' ')[0]) > 0
+    is_fin    = ['FIN'].count(texto.split(' ')[0]) > 0
+    embellecedor = ' ____ ' if is_inicio or is_fin else ' :::: '
 
-'''def show_aggregated_results(resultados_agregados):
-    x_values = list(resultados_agregados.index.values)
-    x_values = list(map(int, x_values))
-    plt.ylabel('# Referencias')
-    plt.xlabel('Rating')
-    plt.title("# Menciones del elemento '" + "'")
-    plt_summary = plt.bar(x_values, resultados_agregados['summary_length'], color='blue')
-    plt_review = plt.bar(x_values, resultados_agregados['total_text']-resultados_agregados.summary_length, bottom=resultados_agregados['summary_length'], color='red')
-    plt.legend((plt_summary[0], plt_review[0]), ('En summaries', 'En reviews'))
-    plt.show()'''
+    if is_fin:
+        print((strfdelta(timestamps[tot-1]-timestamps[0])+embellecedor+texto+' ').ljust(100, '_'))
+    else:
+        print((strfdelta(timestamps[tot-1]-timestamps[tot-2])+embellecedor+texto+' ').ljust(100, '_'))
+        return timestamps
 ########################################################################################################################
 def print_stacked_histogram(data_agg, bottom_colname, bottom_legend, top_colname, top_legend, title='Title'):
     x_values = list(data_agg.index.values)
     x_values = list(map(int, x_values))
-    #plt.ylabel('# Referencias')
-    #plt.xlabel('Rating')
-    #plt.title("# Menciones del elemento '" + "'")
     plt_bottom  = plt.bar(x_values, data_agg[bottom_colname], color='tab:red')
     plt_top     = plt.bar(x_values, data_agg[top_colname]-data_agg[bottom_colname], bottom=data_agg[bottom_colname], color='tab:blue')
     plt.legend((plt_bottom[0], plt_top[0]), (bottom_legend, top_legend))
@@ -238,7 +221,7 @@ def perform_eda(raw_data, analysis):
         d = round(raw_data.groupby('item_id').agg({'rating':np.median}))
         d['item_id'] = d.index.values
         this_data = d.groupby('rating').count()['item_id']
-        print_simple_histogram(data_agg=this_data, title='Distribución de opiniones por puntuación media de artículo')
+        print_simple_histogram(data_agg=this_data, title='Distribución de opiniones por puntuación mediana de artículo')
         
     elif analysis == 'summary_review_length_comparison_per_rating':
         raw_data = add_lenght_info(raw_data)
@@ -264,12 +247,6 @@ def perform_eda(raw_data, analysis):
         lista_de_longitudes.append(raw_data[raw_data.rating==5]['total_text'])
         print_simple_boxplot(data = lista_de_longitudes, labels=[1, 2, 3, 4, 5], yscale='log', grid='minor', title='Longitud del texto completo')
 ########################################################################################################################
-def get_opinions_full_df(nrows, sampling=False):
-    df = pd.read_csv (r'opinions_full_df_1000000.csv')
-    if sampling:
-        return df.sample(n=nrows, random_state=1)
-    return df.loc[:nrows-1]
-########################################################################################################################
 def build_odf(doc_numbers, ratings, summaries_bigrams, summaries_raw, reviews_bigrams, reviews_raw, corpus_aceptado=None):
     timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN BUILD_ODF', timestamps=[])
     text_list_of_strings = []
@@ -278,7 +255,7 @@ def build_odf(doc_numbers, ratings, summaries_bigrams, summaries_raw, reviews_bi
     for i in range(0, len(summaries_bigrams)):
         text.append(summaries_bigrams[i]+reviews_bigrams[i])
         if i%200000 == 0:
-           timestamps = calcula_y_muestra_tiempos('BUCLE GENERACIÓN VARIABLE TEXT: i='+str(i)+' DE '+str(len(summaries_bigrams)), timestamps)
+           timestamps = calcula_y_muestra_tiempos('BUCLE GENERACIÓN VARIABLE TEXT: '+str(i)+' DE '+str(len(summaries_bigrams)), timestamps)
     timestamps = calcula_y_muestra_tiempos('VARIABLE TEXT GENERADA', timestamps)
     
     if corpus_aceptado is not None and len(corpus_aceptado) > 0:
@@ -294,7 +271,7 @@ def build_odf(doc_numbers, ratings, summaries_bigrams, summaries_raw, reviews_bi
             text2.append(linea2)
             i += 1
             if i%200000 == 0:
-                timestamps = calcula_y_muestra_tiempos('BUCLE GENERACIÓN VARIABLE TEXT: i='+str(i)+' DE '+str(len(text)), timestamps)
+                timestamps = calcula_y_muestra_tiempos('BUCLE GENERACIÓN VARIABLE TEXT: '+str(i)+' DE '+str(len(text)), timestamps)
         timestamps = calcula_y_muestra_tiempos('VARIABLE TEXT GENERADA', timestamps)
         for linea2 in text2:
             text_list_of_strings.append(', '.join(map(str, linea2)))
@@ -310,7 +287,8 @@ def build_odf(doc_numbers, ratings, summaries_bigrams, summaries_raw, reviews_bi
     tmp.index = tmp['doc_number']
     
     retorno = tmp[['doc_number', 'rating', 'text', 'summary_raw', 'review_raw', 'summary_tokens_length']]
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN BUILD_ODF', timestamps)
+    retorno['rating_0'] = map_rating(retorno['rating'])
+    calcula_y_muestra_tiempos('FIN FUNCIÓN BUILD_ODF', timestamps)
     
     return retorno
 ########################################################################################################################
@@ -321,15 +299,6 @@ def sent_to_words(sentences):
     return retorno
 ########################################################################################################################
 def remove_stopwords(texts):
-    '''
-    from nltk.corpus import stopwords
-    stop_words = stopwords.words('english')
-    # las siguientes palabras se han incluido aquí habiendo hecho un bow y revisando palabras frecuentes de poco valor
-    stop_words.extend(['one', 'get', 'got', 'getting', 'shoud', 'like', 'also', 'would', 'even', 'could', 'two', 'item', 'thing', 'put', 'however',
-                       'something', 'etc', 'unless', 'https', 'www'])
-    palabras_deseadas = ['too', 'not', 'no']
-    for palabra in palabras_deseadas:
-        stop_words.remove(palabra)'''
     stop_words = get_stopwords('pre')
     return [[word for word in simple_preprocess(str(doc)) if word not in stop_words] for doc in texts]
 ########################################################################################################################
@@ -340,503 +309,14 @@ def make_bigrams(texts, data_words):
     bigram_mod = gensim.models.phrases.Phraser(bigram)
     return [bigram_mod[doc] for doc in texts]
 ########################################################################################################################
-'''def analize_wordset_not_so_naive(df, wordset_wrapper, show=False):
-    
-    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE', timestamps)
-    max_distance = 3
-    wordset_ands = wordset_wrapper['wordset']['ands']
-    wordset_ors = wordset_wrapper['wordset']['ors']
-    wordset_name = wordset_wrapper['name']
-    
-    rows = []
-    
-    timestamps = calcula_y_muestra_tiempos('ARRANCA EL BUCLE DE OPINIONES', timestamps)
-    for opinion in df.iterrows():
-        a_row = {'doc_number':0}
-        opinion_text = opinion[1]['text'].split(', ')
-        ands_count = 0
-        for and_word in wordset_ands:
-            if opinion_text.count(and_word) > 0:
-                ands_count += 1
-                
-        if ands_count == len(wordset_ands): # se cumplen los ands
-            or_groups_count = 0
-            for or_group in wordset_ors:
-                for syn0_word in or_group['syn0']:
-                    if syn0_word in opinion_text:
-                        or_groups_count += 1
-                        break
-                for syn1_word in or_group['syn1']:
-                    if syn1_word in opinion_text:
-                        matches = [opinion_text.index(syn1_word)]
-                        if len(matches) > 0:
-                            for match in matches:
-                                start = match-max_distance
-                                if match == 0:
-                                    start = 0
-                                close_words = opinion_text[start:match+max_distance+1]
-                                if len(or_group['syn2']) > 0:
-                                    for syn2_word in or_group['syn2']:
-                                        if close_words.count(syn2_word) > 0:
-                                            or_groups_count += 1
-                                            break
-                                else:
-                                    or_groups_count += 1
-                                    break
-            if or_groups_count >= len(wordset_ors):
-                a_row = {'doc_number': opinion[1]['doc_number']}
-                rows.append(a_row)
-        if opinion[1]['doc_number'] % 50000 == 0:
-            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: NUM_DOCUMENTO='+str(opinion[1]['doc_number'])+' DE '+str(len(df)), timestamps)
-    timestamps = calcula_y_muestra_tiempos('FINALIZA EL BUCLE DE OPINIONES', timestamps)
-    rows = pd.DataFrame(rows)
-    
-    if len(rows) == 0:
-        df_filtered = df.iloc[0:0]
-        resultados_agregados = df[['rating', 'doc_number']].iloc[0:0]
-        print('No se ha hallado')
-    else:
-        df_filtered = df.loc[rows['doc_number']]
-        resultados_agregados = df_filtered.groupby('rating').agg({'doc_number': np.size})
-        resultados_agregados_index = resultados_agregados.index
-        resultados_agregados = resultados_agregados.to_dict(orient='index')
-        
-        if 1 not in resultados_agregados_index:
-            resultados_agregados['1'] = {'doc_number':0}
-        if 2 not in resultados_agregados_index:
-            resultados_agregados['2'] = {'doc_number':0}
-        if 3 not in resultados_agregados_index:
-            resultados_agregados['3'] = {'doc_number':0}
-        if 4 not in resultados_agregados_index:
-            resultados_agregados['4'] = {'doc_number':0}
-        if 5 not in resultados_agregados_index:
-            resultados_agregados['5'] = {'doc_number':0}
-            
-        resultados_agregados = pd.DataFrame(resultados_agregados).transpose()
-            
-        #resultados_agregados['rating_c'] = resultados_agregados.index.values.astype('int64')
-        #totales = df.groupby('rating').agg({'doc_number': np.size})
-        #totales['rating_c'] = totales.index.values.astype('int64')
-        #totales = totales.rename(columns={"doc_number": "total_docs"})
-            
-        #resultados_agregados = pd.merge(resultados_agregados, totales, on='rating_c')
-        #resultados_agregados = resultados_agregados.set_index('rating_c')
-        #resultados_agregados['ratio_docs'] = round(resultados_agregados['doc_number']/resultados_agregados['total_docs'], 5)
-        
-        if show:
-            #show_aggregated_results_3(resultados_agregados, wordset_name)
-            print_simple_histogram(resultados_agregados['doc_number'])
-    
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE', timestamps)
-    return df_filtered, resultados_agregados'''
-########################################################################################################################
-'''def analize_wordset_not_so_naive_2(df, wordset_wrapper, show=False):
-    
-    timestamps = calcula_y_muestra_tiempos_2('INICIO FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE')
-    max_distance = 3
-    wordset_ands = wordset_wrapper['wordset']['ands']
-    wordset_ors = wordset_wrapper['wordset']['ors']
-    wordset_name = wordset_wrapper['name']
-    
-    rows = []
-    
-    timestamps = calcula_y_muestra_tiempos_2('ARRANCA EL BUCLE DE OPINIONES')
-    ##################################################_C_O_R E_########################################
-    i = 0
-    for opinion in df.iterrows():
-        opinion_text = opinion[1]['text'].split(', ')
-        #opinion_text = ['this', 'is', 'a', 'random', 'not', 'easy_install', 'totally', 'installation', 'easy', 'testing', 'purposes']
-        
-        ands_compliance = True
-        for and_word in wordset_ands:
-            if opinion_text.count(and_word) == 0:
-                ands_compliance = False
-        
-        if ands_compliance:
-            ors_compliance = False
-            for or_group in wordset_ors:
-                if not ors_compliance:               
-                    syn0_words = or_group['syn0']
-                    syn0_indices = []
-                    for syn0_word in syn0_words:
-                        syn0_indices.extend([i for i, j in enumerate(opinion_text) if j == syn0_word])          
-                    
-                    syn1_words = or_group['syn1']
-                    syn1_indices = []
-                    for syn1_word in syn1_words:
-                        syn1_indices.extend([i for i, j in enumerate(opinion_text) if j == syn1_word])
-                    
-                    if len(syn0_indices)+len(syn1_indices) == 0:
-                        break # Salimos del bucle for or_group in wordset_ors porque este no se satisface
-                    else:
-                        syn0_array = [0] * len(opinion_text)
-        
-                        for syn0_indice in syn0_indices:
-                            syn0_array[syn0_indice] = 1
-                        
-                        syn1_array = [0] * len(opinion_text)
-        
-                        for syn1_indice in syn1_indices:
-                            syn1_array[syn1_indice] = 1
-                        
-                        syn2_words = or_group['syn2']
-                        syn2_indices = []
-                        syn2_array = [0] * len(opinion_text)
-                        for syn2_word in syn2_words:
-                            syn2_indices.extend([i for i, j in enumerate(opinion_text) if j == syn2_word])
-                        for syn2_indice in syn2_indices:
-                            syn2_array[syn2_indice] = 1
-                        
-                        nots_words = or_group['nots']
-                        nots_indices = []
-                        nots_array = [0] * len(opinion_text)
-                        for nots_word in nots_words:
-                            nots_indices.extend([i for i, j in enumerate(opinion_text) if j == nots_word])
-                        for nots_indice in nots_indices:
-                            nots_array[nots_indice] = 1  
-                        
-                        matrix = pd.DataFrame(zip(syn0_array, syn1_array, syn2_array, nots_array)).transpose()
-                        matrix.columns = opinion_text
-                        matrix.index = ['syn0', 'syn1', 'syn2', 'nots']
-                        
-                        cs_syn0_ok = matrix.loc['syn0'].sum()
-                        cs_syn1_ok = 0
-                        cs_syn0_ko = 0
-                        cs_syn1_ko = 0
-                        
-                        for indice in syn0_indices:
-                            cs_syn0_ko += matrix.loc['nots'][indice-max_distance:indice+max_distance].sum()
-                    
-                        if cs_syn0_ko == 0:
-                            syn1_indices_sobreviven = []
-                            for indice in syn1_indices:
-                                if matrix.loc['syn2'][indice-max_distance:indice+max_distance].sum() > 0:
-                                    syn1_indices_sobreviven.append(indice)
-                            
-                            syn1_array_sobreviven = [0] * len(opinion_text)
-                            for syn1_indice in syn1_indices_sobreviven:
-                                syn1_array_sobreviven[syn1_indice] = 1
-                            
-                            matrix = pd.DataFrame(zip(syn0_array, syn1_array_sobreviven, nots_array)).transpose()
-                            matrix.columns = opinion_text
-                            matrix.index = ['syn0', 'syn1', 'nots']
-                            
-                            cs_syn1_ok = matrix.loc['syn1'].sum()
-                            if cs_syn1_ok > 0:
-                                for indice in syn1_indices_sobreviven:
-                                    cs_syn1_ko += matrix.loc['nots'][indice-max_distance:indice+max_distance].sum()
-                    
-                        if (cs_syn0_ok > 0 or cs_syn1_ok > 0) and cs_syn0_ko + cs_syn1_ko == 0: #El grupo or cumple
-                            ors_compliance = True
-                            rows.append({'doc_number': opinion[1]['doc_number']})
-    ##################################################_C_O_R_E_########################################
-        if i % 50000 == 0:
-            timestamps = calcula_y_muestra_tiempos_2('BUCLE OPINIONES: NUM_DOCUMENTO='+str(i)+' DE '+str(len(df)))
-        i += 1
-    timestamps = calcula_y_muestra_tiempos_2('FINALIZA EL BUCLE DE OPINIONES')
-    rows = pd.DataFrame(rows)
-    
-    if len(rows) == 0:
-        df_filtered = df.iloc[0:0]
-        resultados_agregados = df[['rating', 'doc_number']].iloc[0:0]
-        print('No se ha hallado')
-    else:
-        df_filtered = df.loc[rows['doc_number']]
-        resultados_agregados = df_filtered.groupby('rating').agg({'doc_number': np.size})
-        resultados_agregados_index = resultados_agregados.index
-        resultados_agregados = resultados_agregados.to_dict(orient='index')
-        
-        if 1 not in resultados_agregados_index:
-            resultados_agregados['1'] = {'doc_number':0}
-        if 2 not in resultados_agregados_index:
-            resultados_agregados['2'] = {'doc_number':0}
-        if 3 not in resultados_agregados_index:
-            resultados_agregados['3'] = {'doc_number':0}
-        if 4 not in resultados_agregados_index:
-            resultados_agregados['4'] = {'doc_number':0}
-        if 5 not in resultados_agregados_index:
-            resultados_agregados['5'] = {'doc_number':0}
-            
-        resultados_agregados = pd.DataFrame(resultados_agregados).transpose()
-            
-        #resultados_agregados['rating_c'] = resultados_agregados.index.values.astype('int64')
-        #totales = df.groupby('rating').agg({'doc_number': np.size})
-        #totales['rating_c'] = totales.index.values.astype('int64')
-        #totales = totales.rename(columns={"doc_number": "total_docs"})
-            
-        #resultados_agregados = pd.merge(resultados_agregados, totales, on='rating_c')
-        #resultados_agregados = resultados_agregados.set_index('rating_c')
-        #resultados_agregados['ratio_docs'] = round(resultados_agregados['doc_number']/resultados_agregados['total_docs'], 5)
-        
-        if show:
-            #show_aggregated_results_3(resultados_agregados, wordset_name)
-            print_simple_histogram(resultados_agregados['doc_number'])
-    
-    timestamps = calcula_y_muestra_tiempos_2('FIN FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE')
-    return df_filtered, resultados_agregados'''
-########################################################################################################################
-########################################################################################################################
-'''def analize_wordset_not_so_naive_3(df, wordset_wrapper, show=False):
-    
-    timestamps = calcula_y_muestra_tiempos_2('INICIO FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE')
-    
-    max_distance = 3
-    wordset_ands = wordset_wrapper['wordset']['ands']
-    wordset_ors = wordset_wrapper['wordset']['ors']
-    wordset_name = wordset_wrapper['name']
-    timestamps = calcula_y_muestra_tiempos_2('WORDSET A ANALIZAR: ' + wordset_name)
-    
-    rows = []
-    
-    elementos_or = get_wsw_structure(wordset_wrapper)[1]
-    
-    timestamps = calcula_y_muestra_tiempos_2('ARRANCA EL BUCLE DE OPINIONES')
-    ##################################################_C_O_R_E_########################################
-    i = 0
-    for opinion in df.iterrows():
-        ors_compliance = False
-        and_compliance = False
-        parte = 'summary'
-        
-        for pase in range(0,2):
-            if parte == 'summary':
-                opinion_text = opinion[1]['text'].split(', ')[0:opinion[1]['summary_tokens_length']]
-                parte = 'review'
-            elif not ors_compliance:
-                opinion_text = opinion[1]['text'].split(', ')[opinion[1]['summary_tokens_length']:]
-    
-            if not ors_compliance:
-                if not and_compliance:
-                    ands_count = 0
-                    for and_word in wordset_ands:
-                        if opinion_text.count(and_word) > 0:
-                            ands_count += 1
-                            
-                    and_compliance = ands_count == len(wordset_ands)
-                if and_compliance: # se cumplen los ands
-                    for or_group in wordset_ors:
-                        if not ors_compliance:
-                            syn0_words = or_group['syn0']
-                            syn0_indices = []
-                            
-                            for syn0_word in syn0_words:
-                                syn0_indices.extend([i for i, j in enumerate(opinion_text) if j == syn0_word])
-                                
-                            syn1_words = or_group['syn1']
-                            syn1_indices = []
-                            for syn1_word in syn1_words:
-                                syn1_indices.extend([i for i, j in enumerate(opinion_text) if j == syn1_word])
-                        
-                            if len(syn0_indices) == 0 and len(syn1_indices) == 0: #ESTE OR_GROUP NO SATISFACE
-                                continue
-                            elif len(syn0_indices) > 0 and len(syn1_indices) == 0: #LOS SYN0 PUEDEN SATISFACER, NO ASI LOS SYN1
-                                # CONSTRUCCION ARRAY DE SYN0
-                                min_posicion = max(min(syn0_indices)-max_distance, 0)
-                                max_posicion = min(max(syn0_indices)+max_distance, len(opinion_text))
-                                tokens_implicados = opinion_text[min_posicion:max_posicion+1]
-                                syn0_array = [0] * len(tokens_implicados)
-                                syn0_indices = [x-min_posicion for x in syn0_indices]
-                                for syn0_indice in syn0_indices:
-                                    syn0_array[syn0_indice] = 1
-                                # CONSTRUCCION ARRAY DE NOTS
-                                nots_words = wordset_ors[0]['nots']
-                                nots_indices = []
-                                for nots_word in nots_words:
-                                    nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                    ors_compliance = True
-                                    break
-                                else:
-                                    nots_array = [0] * len(tokens_implicados)
-                                    for nots_indice in nots_indices:
-                                        nots_array[nots_indice] = 1
-                                    # CONSTRUCCION MATRIZ
-                                    #matrix = pd.DataFrame(zip(syn0_array, nots_array)).transpose()
-                                    #matrix.columns = tokens_implicados
-                                    #matrix.index = ['syn0', 'nots']
-                                    
-                                    for syn0_indice in syn0_indices:
-                                        #if matrix.loc['nots'][syn0_indice-max_distance:syn0_indice].sum() == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                        primera_posicion = 0 if syn0_indice-max_distance<0 else syn0_indice-max_distance
-                                        if sum(nots_array[primera_posicion:syn0_indice]) == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                            ors_compliance = True
-                            elif len(syn0_indices) == 0 and len(syn1_indices) > 0: #HAY SYN1 PERO NO HAY SYN0
-                                min_posicion = max(min(syn1_indices)-max_distance, 0)
-                                max_posicion = min(max(syn1_indices)+max_distance, len(opinion_text))
-                                tokens_implicados = opinion_text[min_posicion:max_posicion+1]
-                                
-                                syn2_words = or_group['syn2']
-                                syn2_indices = []
-                                for syn2_word in syn2_words:
-                                    syn2_indices.extend([i for i, j in enumerate(tokens_implicados) if j == syn2_word])
-                                if len(syn2_indices) > 0 or len(syn2_words) == 0: # HAY SYN2, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                    syn2_array = [0] * len(tokens_implicados)
-                                    for syn2_indice in syn2_indices:
-                                        syn2_array[syn2_indice] = 1
-                
-                                    syn1_indices = [x-min_posicion for x in syn1_indices]
-                                    syn1_indices_sobreviven = []
-                                    for indice in syn1_indices:
-                                        if sum(syn2_array[indice-max_distance:indice+max_distance+1]) > 0:
-                                            syn1_indices_sobreviven.append(indice)
-                                    
-                                    syn1_array_sobreviven = [0] * len(tokens_implicados)
-                                    for syn1_indice in syn1_indices_sobreviven:
-                                        syn1_array_sobreviven[syn1_indice] = 1
-                
-                                    if len(syn1_array_sobreviven) > 0: #SOBREVIVE ALGUN SYN1, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                        # CONSTRUCCION ARRAY DE NOTS
-                                        nots_words = wordset_ors[0]['nots']
-                                        nots_indices = []
-                                        for nots_word in nots_words:
-                                            nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                        if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                            ors_compliance = True
-                                            break
-                                        else:
-                                            nots_array = [0] * len(tokens_implicados)
-                                            for nots_indice in nots_indices:
-                                                nots_array[nots_indice] = 1
-                                            # CONSTRUCCION MATRIZ
-                                            #matrix = pd.DataFrame(zip(syn1_array_sobreviven, nots_array)).transpose()
-                                            #matrix.columns = tokens_implicados
-                                            #matrix.index = ['syn1', 'nots']
-                                            for syn1_indice in syn1_indices_sobreviven:
-                                                primera_posicion = 0 if syn1_indice-max_distance<0 else syn1_indice-max_distance
-                                                if sum(nots_array[primera_posicion:syn1_indice]) == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                #if matrix.loc['nots'][syn1_indice-max_distance:syn1_indice].sum() == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                    ors_compliance = True
-                            elif len(syn0_indices) > 0 and len(syn1_indices) > 0: #HAY SYN1 Y SYN0
-                                posiciones_syn = []
-                                posiciones_syn.extend(syn0_indices)
-                                posiciones_syn.extend(syn1_indices)
-                                min_posicion = max(min(posiciones_syn)-max_distance, 0)
-                                max_posicion = min(max(posiciones_syn)+max_distance, len(opinion_text))
-                                tokens_implicados = opinion_text[min_posicion:max_posicion+1]
-                                syn0_array = [0] * len(tokens_implicados)
-                                syn0_indices = [x-min_posicion for x in syn0_indices]
-                                for syn0_indice in syn0_indices:
-                                    syn0_array[syn0_indice] = 1
-                                # CONSTRUCCION ARRAY DE NOTS
-                                nots_words = wordset_ors[0]['nots']
-                                nots_indices = []
-                                for nots_word in nots_words:
-                                    nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                    ors_compliance = True
-                                    break
-                                else:
-                                    nots_array = [0] * len(tokens_implicados)
-                                    for nots_indice in nots_indices:
-                                        nots_array[nots_indice] = 1
-                                    # CONSTRUCCION MATRIZ
-                                    #matrix = pd.DataFrame(zip(syn0_array, nots_array)).transpose()
-                                    #matrix.columns = tokens_implicados
-                                    #matrix.index = ['syn0', 'nots']
-                                    
-                                    for syn0_indice in syn0_indices:
-                                        primera_posicion = 0 if syn0_indice-max_distance<0 else syn0_indice-max_distance
-                                        if sum(nots_array[primera_posicion:syn0_indice]) == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                        #if matrix.loc['nots'][syn0_indice-max_distance:syn0_indice].sum() == 0: # PARA AL MENOS UN SYN0 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                            ors_compliance = True
-                                    if not ors_compliance: #LOS SYN0 NO SATISFACEN, HAY QUE VER LOS SYN1
-                                        syn2_words = or_group['syn2']
-                                        syn2_indices = []
-                                        for syn2_word in syn2_words:
-                                            syn2_indices.extend([i for i, j in enumerate(tokens_implicados) if j == syn2_word])
-                                        if len(syn2_indices) > 0 or len(syn2_words) == 0: # HAY SYN2, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                            syn2_array = [0] * len(tokens_implicados)
-                                            for syn2_indice in syn2_indices:
-                                                syn2_array[syn2_indice] = 1
-                        
-                                            syn1_indices = [x-min_posicion for x in syn1_indices]
-                                            syn1_indices_sobreviven = []
-                                            for indice in syn1_indices:
-                                                if sum(syn2_array[indice-max_distance:indice+max_distance+1]) > 0:
-                                                    syn1_indices_sobreviven.append(indice)
-                                            
-                                            syn1_array_sobreviven = [0] * len(tokens_implicados)
-                                            for syn1_indice in syn1_indices_sobreviven:
-                                                syn1_array_sobreviven[syn1_indice] = 1
-                        
-                                            if len(syn1_array_sobreviven) > 0: #SOBREVIVE ALGUN SYN1, POR LO QUE EL OR_GROUP PUEDE SATISFACER
-                                                # CONSTRUCCION ARRAY DE NOTS
-                                                nots_words = wordset_ors[0]['nots']
-                                                nots_indices = []
-                                                for nots_word in nots_words:
-                                                    nots_indices.extend([i for i, j in enumerate(tokens_implicados) if j == nots_word])
-                                                if len(nots_indices) == 0: # NO HAY NOTS, POR LO QUE EL OR_GROUP SATISFACE Y LA OPINION SE ACEPTA
-                                                    ors_compliance = True
-                                                    break
-                                                else:
-                                                    nots_array = [0] * len(tokens_implicados)
-                                                    for nots_indice in nots_indices:
-                                                        nots_array[nots_indice] = 1
-                                                    # CONSTRUCCION MATRIZ
-                                                    #matrix = pd.DataFrame(zip(syn1_array_sobreviven, nots_array)).transpose()
-                                                    #matrix.columns = tokens_implicados
-                                                    #matrix.index = ['syn1', 'nots']
-                                                    for syn1_indice in syn1_indices_sobreviven:
-                                                        primera_posicion = 0 if syn1_indice-max_distance<0 else syn1_indice-max_distance
-                                                        if sum(nots_array[primera_posicion:syn1_indice]) == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                        #if matrix.loc['nots'][syn1_indice-max_distance:syn1_indice].sum() == 0: # PARA AL MENOS UN SYN1 NO HAY NOTS PROXIMOS, POR LO QUE ESTE OR_GROUP SATISFACE
-                                                            ors_compliance = True
-        if and_compliance and (ors_compliance or elementos_or == 0):
-            rows.append({'doc_number': opinion[1]['doc_number']})
-    ##################################################_C_O_R_E_########################################
-        if i % 50000 == 0:
-            timestamps = calcula_y_muestra_tiempos_2('BUCLE OPINIONES: NUM_DOCUMENTO='+str(i)+' DE '+str(len(df)))
-        i += 1
-    timestamps = calcula_y_muestra_tiempos_2('FINALIZA EL BUCLE DE OPINIONES')
-    rows = pd.DataFrame(rows)
-    
-    if len(rows) == 0:
-        df_filtered = df.iloc[0:0]
-        resultados_agregados = df[['rating', 'doc_number']].iloc[0:0]
-        print('No se ha hallado')
-    else:
-        df_filtered = df.loc[rows['doc_number']]
-        resultados_agregados = df_filtered.groupby('rating').agg({'doc_number': np.size})
-        resultados_agregados_index = resultados_agregados.index
-        resultados_agregados = resultados_agregados.to_dict(orient='index')
-        
-        if 1 not in resultados_agregados_index:
-            resultados_agregados['1'] = {'doc_number':0}
-        if 2 not in resultados_agregados_index:
-            resultados_agregados['2'] = {'doc_number':0}
-        if 3 not in resultados_agregados_index:
-            resultados_agregados['3'] = {'doc_number':0}
-        if 4 not in resultados_agregados_index:
-            resultados_agregados['4'] = {'doc_number':0}
-        if 5 not in resultados_agregados_index:
-            resultados_agregados['5'] = {'doc_number':0}
-            
-        resultados_agregados = pd.DataFrame(resultados_agregados).transpose()
-            
-        #resultados_agregados['rating_c'] = resultados_agregados.index.values.astype('int64')
-        #totales = df.groupby('rating').agg({'doc_number': np.size})
-        #totales['rating_c'] = totales.index.values.astype('int64')
-        #totales = totales.rename(columns={"doc_number": "total_docs"})
-            
-        #resultados_agregados = pd.merge(resultados_agregados, totales, on='rating_c')
-        #resultados_agregados = resultados_agregados.set_index('rating_c')
-        #resultados_agregados['ratio_docs'] = round(resultados_agregados['doc_number']/resultados_agregados['total_docs'], 5)
-        
-        if show:
-            #show_aggregated_results_3(resultados_agregados, wordset_name)
-            print_simple_histogram(resultados_agregados['doc_number'], title = "Analize para el wordset '" + wordset_name + "'")
-    
-    timestamps = calcula_y_muestra_tiempos_2('FIN FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE')
-    return df_filtered, resultados_agregados'''
-########################################################################################################################
 def check_existencia (conjunto, tokens_a_buscar):
     for token in tokens_a_buscar:
         if token in conjunto:
             return True
 ########################################################################################################################
-def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
+def analize_wordset(df, wordset_wrapper, show=False):
     
-    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE', timestamps=[])
+    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN ANALIZE_WORDSET', timestamps=[])
     
     max_distance = 3
     wordset_ands = wordset_wrapper['wordset']['ands']
@@ -848,7 +328,7 @@ def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
     
     elementos_or = get_wsw_structure(wordset_wrapper)[1]
     
-    timestamps = calcula_y_muestra_tiempos('ARRANCA EL BUCLE DE OPINIONES', timestamps)
+    #timestamps = calcula_y_muestra_tiempos('ARRANCA EL BUCLE DE OPINIONES', timestamps)
     ##################################################_C_O_R_E_########################################
     i = 0
     j = 0
@@ -1048,14 +528,15 @@ def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
             j += 1
     ##################################################_C_O_R_E_########################################
         if i % 200000 == 0:
-            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: NUM_DOCUMENTO='+str(i)+' DE '+str(len(df))+' HITS: '+str(j), timestamps)
+            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: '+str(i)+' DE '+str(len(df))+' HITS: '+str(j), timestamps)
         i += 1
-    timestamps = calcula_y_muestra_tiempos('FINALIZA EL BUCLE DE OPINIONES', timestamps)
+    #timestamps = calcula_y_muestra_tiempos('FINALIZA EL BUCLE DE OPINIONES', timestamps)
     rows = pd.DataFrame(rows)
     
     if len(rows) == 0:
         df_filtered = df.iloc[0:0]
         resultados_agregados = df[['rating', 'doc_number']].iloc[0:0]
+        calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET', timestamps)
         print('No se ha hallado')
     else:
         df_filtered = df.loc[rows['doc_number']]
@@ -1075,21 +556,12 @@ def analize_wordset_not_so_naive_4(df, wordset_wrapper, show=False):
             resultados_agregados['5'] = {'doc_number':0}
             
         resultados_agregados = pd.DataFrame(resultados_agregados).transpose()
-            
-        #resultados_agregados['rating_c'] = resultados_agregados.index.values.astype('int64')
-        #totales = df.groupby('rating').agg({'doc_number': np.size})
-        #totales['rating_c'] = totales.index.values.astype('int64')
-        #totales = totales.rename(columns={"doc_number": "total_docs"})
-            
-        #resultados_agregados = pd.merge(resultados_agregados, totales, on='rating_c')
-        #resultados_agregados = resultados_agregados.set_index('rating_c')
-        #resultados_agregados['ratio_docs'] = round(resultados_agregados['doc_number']/resultados_agregados['total_docs'], 5)
-        
+
+        calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET', timestamps)
+    
         if show:
-            #show_aggregated_results_3(resultados_agregados, wordset_name)
             print_simple_histogram(resultados_agregados['doc_number'], title = "Analize para el wordset '" + wordset_name + "'")
     
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET_NOT_SO_NAIVE', timestamps)
     return df_filtered, resultados_agregados
 ########################################################################################################################
 def get_ws_or_words(wsw):
@@ -1102,29 +574,7 @@ def get_ws_or_words(wsw):
             words_list.append(syn1_word)
     return words_list
 ########################################################################################################################
-#def show_aggregated_results_2(resultados_agregados, word):
-#    import matplotlib.pyplot as plt
-#    x_values = resultados_agregados.index.values.astype('int64')
-#    fig, ax1 = plt.subplots()
-#    plt.title("Ratio documentos en que aparece el elemento '" + word + "'")
-#    ax1.set_xlabel('Rating')
-#    ax1.bar(x_values-0.2, resultados_agregados['ratio_docs'], color='orange', width=0.4)
-#    ax1.set_ylabel('Ratio documentos', color='orange')
-#    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
-#    ax2.bar(x_values+0.2, resultados_agregados['doc_number'], color='green', width=0.4)
-#    ax2.set_ylabel('# Opiniones', color='green')
-#    plt.show()
-########################################################################################################################
-#def show_aggregated_results_3(resultados_agregados, wsw_name):
-#    x_values = resultados_agregados.index.values.astype('int64')
-#    plt.ylabel('# Referencias')
-#    plt.xlabel('Rating')
-#    plt.title("# Menciones del elemento '" + wsw_name + "'")
-#    plt.bar(x_values, resultados_agregados['doc_number'], color='blue')
-#    plt.show()
-########################################################################################################################
 def lemmatization(texts, allowed_postags=['NOUN', 'ADJ', 'VERB', 'ADV']):
-    import spacy
     nlp = spacy.load('en', disable=['parser', 'ner'])
     #"""https://spacy.io/api/annotation"""
     texts_out = []
@@ -1141,16 +591,13 @@ def execute_preprocessing_pipeline(opinions_raw, eliminar_poco_frecuentes=True, 
     summaries_words = sent_to_words(summaries_raw)
     
     
-    #opinions_raw = data_raw_1
     num_docs = opinions_raw.index.values
-    
-    
-    
+
     i = 0
     for i in range(0, len(summaries_words)):
         #summaries_words[i] = ['not' if x=='didn' or x =='didnt' or x =='doesn' or x=='doesnt' or x=='dont' or x=='don' else x for x in summaries_words[i]]
         summaries_words[i] = mapear_palabras_especiales(summaries_words[i])
-    i += 1
+        i += 1
     summaries_words_nostop = remove_stopwords(summaries_words)
     summaries_bigrams = make_bigrams(summaries_words_nostop, summaries_words)
 
@@ -1161,7 +608,7 @@ def execute_preprocessing_pipeline(opinions_raw, eliminar_poco_frecuentes=True, 
     for i in range(0, len(reviews_words)):
         #reviews_words[i] = ['not' if x=='didn' or x =='didnt' or x =='doesn' or x=='doesnt' or x=='dont' or x=='don' else x for x in reviews_words[i]]
         reviews_words[i] = mapear_palabras_especiales(reviews_words[i])
-    i += 1
+        i += 1
     reviews_words_nostop = remove_stopwords(reviews_words)
     reviews_bigrams = make_bigrams(reviews_words_nostop, reviews_words)
     timestamps = calcula_y_muestra_tiempos('REVIEWS PROCESADAS', timestamps)
@@ -1177,7 +624,8 @@ def execute_preprocessing_pipeline(opinions_raw, eliminar_poco_frecuentes=True, 
     url_false = r'..\data\odfs\odf_false_'+str(len(odf_false))+'.csv'
     odf_false.to_csv (url_false, index = False, header=True)
     timestamps = calcula_y_muestra_tiempos('ODF_FALSE SALVADO EN DATA/ODFS', timestamps)
-        
+    
+    '''
     if eliminar_poco_frecuentes:
         odf_true = build_odf(num_docs, opinions_raw.rating, summaries_bigrams, summaries_raw, reviews_bigrams, reviews_raw, generar_corpus_aceptado(odf_false))
         timestamps = calcula_y_muestra_tiempos('ODF CONSTRUIDO DE NUEVO, ELIMINANDO PALABRAS POCO FRECUENTES', timestamps)
@@ -1187,9 +635,10 @@ def execute_preprocessing_pipeline(opinions_raw, eliminar_poco_frecuentes=True, 
         timestamps = calcula_y_muestra_tiempos('ODF_TRUE SALVADO EN DATA/ODFS', timestamps)
         timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN EXECUTE_PREPROCESSING_PIPELINE', timestamps)
         
-        return odf_false, odf_true
+        return odf_false, odf_true'''
 
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN EXECUTE_PREPROCESSING_PIPELINE', timestamps)
+    calcula_y_muestra_tiempos('FIN FUNCIÓN EXECUTE_PREPROCESSING_PIPELINE', timestamps)
+    
     return odf_false
 ########################################################################################################################
 def generate_bow(df, classify_pos_b=True, show=False):
@@ -1208,8 +657,8 @@ def generate_bow(df, classify_pos_b=True, show=False):
     aux = pd.Series(bigrams).value_counts()
     
     bag = pd.DataFrame(zip(aux.index, aux.values), columns=['bigram', 'num_occurrences']).sort_values('num_occurrences', ascending=False)
-    if classify_pos_b:
-        bag['pos'] = bag.apply(lambda row: classify_pos(row['bigram']), axis=1)
+    #if classify_pos_b:
+    #    bag['pos'] = bag.apply(lambda row: classify_pos(row['bigram']), axis=1)
     if show:
         print_wordcloud_from_frequencies(bag[['bigram', 'num_occurrences']], 18)
         
@@ -1218,7 +667,6 @@ def generate_bow(df, classify_pos_b=True, show=False):
 ########################################################################################################################
 def print_wordcloud_from_frequencies(bag, max_words=999):
     import matplotlib.pyplot as plt
-    from wordcloud import WordCloud
     d = {}
     for a, x in bag.values:
         d[a] = x   
@@ -1229,16 +677,14 @@ def print_wordcloud_from_frequencies(bag, max_words=999):
     plt.axis("off")
     plt.show()
 ########################################################################################################################
+'''
 def generar_corpus_aceptado(odf):
     bow=generate_bow(odf, False)
     bow['num_occurrences'][0]
-    #bow['ratio'] = bow['num_occurrences']/bow['num_occurrences'][0]   
-    #corpus_aceptado = bow[bow['ratio'] >= 0.001]
     corpus_aceptado = bow[bow['num_occurrences'] > 2]
-    return corpus_aceptado
+    return corpus_aceptado'''
 ########################################################################################################################
-def extract_bigrams_from_bow(bow):
-    #bow = generate_bow(df=odf, show=False)
+'''def extract_bigrams_from_bow_(bow):
     bigrams = []
     number = []
     for item in bow.iterrows():
@@ -1246,6 +692,18 @@ def extract_bigrams_from_bow(bow):
             bigrams.append(item[1]['bigram'])
             number.append(item[1]['num_occurrences'])
     retorno = pd.DataFrame(list(zip(bigrams, number)), columns =['bigram', 'num_occurrences'])
+    
+    return retorno'''
+########################################################################################################################
+def extract_bigrams_from_counter(counter):
+    bigrams = []
+    number = []
+    for token in counter:
+        if '_' in token:
+            bigrams.append(token)
+            number.append(counter[token])
+    retorno = pd.DataFrame(list(zip(bigrams, number)), columns =['bigram', 'num_occurrences'])
+    retorno.sort_values(by ='num_occurrences', ascending=False)
     
     return retorno
 ########################################################################################################################
@@ -1265,51 +723,6 @@ def load_latest_odf(nrows, is_false=False):
         print("El fichero no existe")
     return None
 ########################################################################################################################
-'''def timestamps = calcula_y_muestra_tiempos(texto):
-    timestamps.append(datetime.now())
-    tot = len(timestamps)
-    print('::::', texto, '::::', strfdelta(timestamps[tot-1]-timestamps[tot-2]))'''
-########################################################################################################################
-def get_ws_words(wsw):
-    wordset_ands = wsw['wordset']['ands']
-    wordset_ors = wsw['wordset']['ors']
-    words_list = []
-    for and_word in wordset_ands:
-        words_list.append(and_word)
-    for or_group in wordset_ors:
-        for syn0_word in or_group['syn0']:
-            words_list.append(syn0_word)
-        for syn1_word in or_group['syn1']:
-            words_list.append(syn1_word)
-        for syn2_word in or_group['syn2']:
-            words_list.append(syn2_word)
-    return words_list
-########################################################################################################################
-def generate_bow_post_analize(odf_filtered, wsw, show=False):
-    bow = generate_bow(odf_filtered, show=False)
-    ws_words = get_ws_words(wsw)
-    rows_to_delete = []
-    i = 0
-    for i in range(0, len(bow)):
-        if bow['bigram'][i] in ws_words:
-            rows_to_delete.append(i)
-    
-    retorno = bow.drop(bow.index[rows_to_delete])
-    
-    if show:
-        print_wordcloud_from_frequencies(retorno[['bigram', 'num_occurrences']], 18)
-    return retorno
-########################################################################################################################
-def remove_stopwords_from_bow(bow, stopwords_modo):
-    rows_to_delete = []
-    i = 0
-    for i in range(0, len(bow)):
-        if bow['bigram'][i] in get_stopwords(modo=stopwords_modo):
-            rows_to_delete.append(i)
-    
-    retorno = bow.drop(rows_to_delete)
-    return retorno
-########################################################################################################################
 def remove_stopwords_from_bow_2(bow, stopwords_modo):
     bow2 = bow.copy()
     bow2['token'] = bow2.index.values
@@ -1320,86 +733,7 @@ def remove_stopwords_from_bow_2(bow, stopwords_modo):
             #rows_to_delete.append(i)
             rows_to_delete.append(bow2['token'][i])
     
-    #retorno = bow.drop(rows_to_delete)
-    #return retorno, rows_to_delete
     return rows_to_delete
-########################################################################################################################
-def generate_bow_not_so_naive(odf_filtered, wsw, stopwords, show=False):
-    bow = generate_bow(odf_filtered, show=False)
-    ws_words = get_ws_words(wsw)
-    rows_to_delete = []
-    i = 0
-    for i in range(0, len(bow)):
-        if bow['bigram'][i] in ws_words+stopwords:
-            rows_to_delete.append(i)
-    
-    retorno = bow.drop(rows_to_delete)
-    
-    if show:
-        print_wordcloud_from_frequencies(retorno[['bigram', 'num_occurrences']], 18)
-    return retorno
-########################################################################################################################
-def generate_bow_post_analize_main(odf_filtered, wsw, show=False):
-    print('Análisis independiente de la puntuación a continuación')
-    bowF = generate_bow_post_analize(odf_filtered, wsw, show)
-    #bow1, bow2, bow3, bow4, bow5 = pd.DataFrame()
-    print('Análisis para 1 estrella a continuación')
-    if len(odf_filtered[odf_filtered['rating']==1]) > 0:
-        bow1 = generate_bow_post_analize(odf_filtered[odf_filtered['rating']==1], wsw, show)
-    else:
-        bow1 = pd.DataFrame()
-    print('Análisis para 2 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==2]) > 0:
-        bow2 = generate_bow_post_analize(odf_filtered[odf_filtered['rating']==2], wsw, show)
-    else:
-        bow2 = pd.DataFrame()
-    print('Análisis para 3 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==3]) > 0:
-        bow3 = generate_bow_post_analize(odf_filtered[odf_filtered['rating']==3], wsw, show)
-    else:
-        bow3 = pd.DataFrame()
-    print('Análisis para 4 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==4]) > 0:
-        bow4 = generate_bow_post_analize(odf_filtered[odf_filtered['rating']==4], wsw, show)
-    else:
-        bow4 = pd.DataFrame()
-    print('Análisis para 5 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==5]) > 0:
-        bow5 = generate_bow_post_analize(odf_filtered[odf_filtered['rating']==5], wsw, show)
-    else:
-        bow5 = pd.DataFrame()
-    return {'F':bowF, '1':bow1, '2':bow2, '3':bow3, '4':bow4, '5':bow5}
-########################################################################################################################
-def generate_bow_not_so_naive_main(odf_filtered, wsw, stopwords, show=False):
-    print('Análisis independiente de la puntuación a continuación')
-    bowF = generate_bow_not_so_naive(odf_filtered, wsw, stopwords, show)
-    #bow1, bow2, bow3, bow4, bow5 = pd.DataFrame()
-    print('Análisis para 1 estrella a continuación')
-    if len(odf_filtered[odf_filtered['rating']==1]) > 0:
-        bow1 = generate_bow_not_so_naive(odf_filtered[odf_filtered['rating']==1], wsw, stopwords, show)
-    else:
-        bow1 = pd.DataFrame()
-    print('Análisis para 2 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==2]) > 0:
-        bow2 = generate_bow_not_so_naive(odf_filtered[odf_filtered['rating']==2], wsw, stopwords, show)
-    else:
-        bow2 = pd.DataFrame()
-    print('Análisis para 3 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==3]) > 0:
-        bow3 = generate_bow_not_so_naive(odf_filtered[odf_filtered['rating']==3], wsw, stopwords, show)
-    else:
-        bow3 = pd.DataFrame()
-    print('Análisis para 4 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==4]) > 0:
-        bow4 = generate_bow_not_so_naive(odf_filtered[odf_filtered['rating']==4], wsw, stopwords, show)
-    else:
-        bow4 = pd.DataFrame()
-    print('Análisis para 5 estrellas a continuación')
-    if len(odf_filtered[odf_filtered['rating']==5]) > 0:
-        bow5 = generate_bow_not_so_naive(odf_filtered[odf_filtered['rating']==5], wsw, stopwords, show)
-    else:
-        bow5 = pd.DataFrame()
-    return {'F':bowF, '1':bow1, '2':bow2, '3':bow3, '4':bow4, '5':bow5}
 ########################################################################################################################
 def analize_wordset_occurrences(df, lista_resultados_analize):
     timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN ANALIZE_WORDSET_OCCURRENCES', timestamps=[])
@@ -1412,7 +746,7 @@ def analize_wordset_occurrences(df, lista_resultados_analize):
         for doc_number in resultado_busqueda['resultados']['doc_number']:
             matriz_documento_wordset[nombre][doc_number] = 1
             if i%20000 == 0:
-                timestamps = calcula_y_muestra_tiempos('BUCLE: i='+str(i)+' de '+str(len(resultado_busqueda['resultados']['doc_number'])), timestamps)
+                timestamps = calcula_y_muestra_tiempos('BUCLE: '+str(i)+' de '+str(len(resultado_busqueda['resultados']['doc_number'])), timestamps)
             i += 1
     matriz_documento_wordset['total_wordsets'] = matriz_documento_wordset.sum(axis=1)
     matriz_documento_wordset_agg = matriz_documento_wordset.groupby('total_wordsets').count()[matriz_documento_wordset.groupby('total_wordsets').count().columns[0]].to_frame()
@@ -1426,43 +760,11 @@ def analize_wordset_occurrences(df, lista_resultados_analize):
     wordsets_names.remove('total_wordsets')
     mat_doc_ws_expanded_agg = mat_doc_ws_expanded.groupby(wordsets_names).agg({'total_wordsets':[np.size, np.mean], 'rating':[np.median, np.mean, np.std]})
     mat_doc_ws_expanded_agg.columns = ['total_opiniones', 'total_temas', 'rating_median', 'rating_mean', 'rating_sd']
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET_OCCURRENCES', timestamps=timestamps)
+    calcula_y_muestra_tiempos('FIN FUNCIÓN ANALIZE_WORDSET_OCCURRENCES', timestamps=timestamps)
 
     return mat_doc_ws_expanded, mat_doc_ws_expanded_agg
 ########################################################################################################################
-def classify_pos(token):
-    if token == 'works':
-        pos = 'VBZ'
-    else:
-        pos = nltk.pos_tag([token])[0][1]
-
-    correspondencias =  {
-                        'NN': 'sustantivo',
-                        'NNS': 'sustantivo',
-                        'JJ': 'adjetivo_o_numeral',
-                        'JJS': 'adjetivo_superlativo',
-                        'JJR': 'adjetivo_comparativo',
-                        'VB': 'verbo',
-                        'VBN': 'verbo',
-                        'VBG': 'verbo',
-                        'VBZ': 'verbo',
-                        'VBD': 'verbo',
-                        'RB': 'adverbio',
-                        'RBR': 'adverbio_comparativo',
-                        'IN': 'preposicion_o_conjuncion',
-                        'DT': 'determinante',
-                        'MD': 'auxiliar_modal',
-                        'CD': 'numeral',                    
-                        'PRP': 'pronombre_personal',
-                        'CC': 'conjuncion',
-                        'WDT': 'determinante_wh',
-                        'WP$': 'pronombre_posesivo'
-                        }
-    pos = correspondencias[pos]
-    return pos
-########################################################################################################################
 def get_stopwords(modo='pre'):
-    from nltk.corpus import stopwords
     stop_words = stopwords.words('english')
     stop_words.extend(['one', 'get', 'got', 'getting', 'shoud', 'like', 'also', 'would', 'even', 'could', 'two', 'item', 'thing', 'put', 'however',
                        'something', 'etc', 'unless', 'https', 'www', 'for'])
@@ -1472,16 +774,10 @@ def get_stopwords(modo='pre'):
             stop_words.remove(palabra)
     return stop_words
 ########################################################################################################################
-'''def get_close_words(opinion_text, match, max_distance):
-    if match == 0:
-        start = 0
-    else:
-        start = match-max_distance
-    return opinion_text[start:match+max_distance+1]'''
-########################################################################################################################
 def mapear_palabras_especiales(array_input):
     retorno = ['not'    if x == 'didn' 
                         or x == 'didnt' 
+                        or x == 'dint'
                         or x == 'didnot'
                         or x == 'dident'
                         or x == 'doesn' 
@@ -1512,35 +808,7 @@ def get_wsw_structure(wsw):
 
     return len(wordset_ands), elementos_or
 ########################################################################################################################
-def get_close_words(df, max_distance, word, n_words):
-    from collections import Counter
-    palabras_antes = []
-    palabras_despues  = []
-
-    for opinion in df.iterrows():
-        texto = opinion[1]['text'].split(', ')
-        if word in set(texto):
-            word_indices = []
-            word_indices.extend([i for i, j in enumerate(texto) if j == word])
-            for indice in word_indices:
-                palabras_despues.extend(texto[indice+1:indice+max_distance+1])
-                palabras_antes.extend(texto[indice-max_distance:indice])
-
-    palabras_antes_final = []
-    palabras_antes_agg = Counter(palabras_antes)
-    palabras_antes_agg = remove_stopwords_from_bow(pd.DataFrame(zip(palabras_antes_agg.keys(), palabras_antes_agg.values()), columns=['bigram', 'num_occurrences']), stopwords_modo='post').sort_values(by=['num_occurrences'], ascending=False)
-    for palabra_antes in palabras_antes_agg['bigram'].iloc[:n_words]:
-        palabras_antes_final.append(palabra_antes)
-
-    palabras_despues_final = []
-    palabras_despues_agg = Counter(palabras_despues)
-    palabras_despues_agg = remove_stopwords_from_bow(pd.DataFrame(zip(palabras_despues_agg.keys(), palabras_despues_agg.values()), columns=['bigram', 'num_occurrences']), stopwords_modo='post').sort_values(by=['num_occurrences'], ascending=False)
-    for palabra_despues in palabras_despues_agg['bigram'].iloc[:n_words]:
-        palabras_despues_final.append(palabra_despues)
-
-    return palabras_antes_final, palabras_despues_final
-########################################################################################################################
-def get_close_words_2(df, word, max_distance=3, n_words=8):
+def get_close_words(df, word, max_distance=3, n_words=8):
     timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN GET_CLOSE_WORDS', timestamps=[])
     palabras_antes = []
     palabras_despues  = []
@@ -1561,7 +829,7 @@ def get_close_words_2(df, word, max_distance=3, n_words=8):
                 palabras_antes.extend(texto_antes)
                 ratings_antes.extend(len(texto_antes)*[opinion[1]['rating']])
         if i%200000 == 0:
-            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: i='+str(i)+' DE '+str(len(df)), timestamps=timestamps)
+            timestamps = calcula_y_muestra_tiempos('BUCLE OPINIONES: '+str(i)+' DE '+str(len(df)), timestamps=timestamps)
         i += 1
 
     df_antes = pd.DataFrame(list(zip(palabras_antes, ratings_antes)), columns = ['token', 'rating'])
@@ -1576,299 +844,12 @@ def get_close_words_2(df, word, max_distance=3, n_words=8):
     df_despues.columns = ['num_occurrences', 'rating_mean', 'rating_sd']
     df_despues = df_despues.sort_values(by=['num_occurrences'], ascending=False)
     
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN GET_CLOSE_WORDS', timestamps=timestamps)
+    calcula_y_muestra_tiempos('FIN FUNCIÓN GET_CLOSE_WORDS', timestamps=timestamps)
     
     return df_antes.iloc[:n_words], df_despues.iloc[:n_words]
-########################################################################################################################
-def visualize_wordsets_network(matriz_doc_ws_expanded, ratings='F'):
-    timestamps = calcula_y_muestra_tiempos('INICIO DE LA FUNCION VISUALIZE_WORDSETS_NETWORK', timestamps=[])
-    # https://www.kaggle.com/jncharon/python-network-graph
-    if ratings != 'F':
-        matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
-    
-    n_puntos_asumibles = 10000
-    n_opiniones = len(matriz_doc_ws_expanded) 
-    new_len = n_puntos_asumibles if n_opiniones > n_puntos_asumibles else n_opiniones
-    matriz_doc_ws_expanded = matriz_doc_ws_expanded.sample(n=new_len)
-    
-    array_num_doc = []
-    array_wordsets = []
-    columnas = matriz_doc_ws_expanded.columns.values.tolist()
-    wordsets_names = columnas[:len(columnas)-2]
-    num_wordsets = len(wordsets_names)
-    for opinion in matriz_doc_ws_expanded.iterrows():
-        for wordset in wordsets_names:
-            if opinion[1][wordset] == 1:
-                array_num_doc.append(opinion[0])
-                array_wordsets.append(wordset)
-    edgelist = pd.DataFrame(zip(array_num_doc, array_wordsets), columns=['from', 'to'])
-    edgelist = pd.merge(edgelist, matriz_doc_ws_expanded['rating'], left_on='from', right_index=True, how='inner')
-    nodelist = wordsets_names.copy()
-    nodelist.extend(edgelist['from'].unique())
-    nodelist = pd.DataFrame(nodelist, columns=['node_name'])
-    timestamps = calcula_y_muestra_tiempos('LISTA DE ARISTAS GENERADA', timestamps=timestamps)
-    sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
-    ct = 2000/max(sizes)
-    sizes = [size * ct for size in sizes]
-    sizes.extend((len(nodelist)-num_wordsets)*[30])
-    nodelist['size'] = sizes
-
-    grupos = np.zeros(num_wordsets).tolist()
-    grupos.extend(matriz_doc_ws_expanded[matriz_doc_ws_expanded['total_wordsets'] > 0]['rating'])
-    nodelist['grupo'] = grupos
-    G = nx.Graph()
-    
-    color_map = {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
-    timestamps = calcula_y_muestra_tiempos('SE PROCEDE A GUARDAR NODOS Y ARISTAS', timestamps=timestamps)
-    # NODES
-    for index, row in nodelist.iterrows():
-        G.add_node(row['node_name'], group=row['grupo'], color=color_map[row['grupo']], size=row['size'])
-    
-    # EDGES
-    for index, row in edgelist.iterrows():
-        G.add_edge(row['from'], row['to'], color=color_map[row['rating']])
-    
-    labels = {}
-    for node in nodelist['node_name'][:num_wordsets]:
-        labels[node] = node
-                
-    plt.figure(figsize=(25, 25))
-    pos = nx.spring_layout(G, k=0.01, iterations=50)
-    timestamps = calcula_y_muestra_tiempos('POS CALCULADO', timestamps=timestamps)
-    edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
-    nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
-    nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
-    timestamps = calcula_y_muestra_tiempos('SE PROCEDE A DIBUJAR LA RED', timestamps=timestamps)
-    nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=0.4)
-    nx.draw_networkx_labels(G, pos, labels, font_size=20)
-    plt.show()
-    timestamps = calcula_y_muestra_tiempos('FIN DE LA FUNCION VISUALIZE_WORDSETS_NETWORK', timestamps=timestamps)
-########################################################################################################################
-def visualize_wordsets_network_2(matriz_doc_ws_expanded, ratings='F'):
-    # https://www.kaggle.com/jncharon/python-network-graph
-    if ratings != 'F':
-        matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
-    
-    n_puntos_asumibles = 10000
-    n_opiniones = len(matriz_doc_ws_expanded) 
-    new_len = n_puntos_asumibles if n_opiniones > n_puntos_asumibles else n_opiniones
-    matriz_doc_ws_expanded = matriz_doc_ws_expanded.sample(n=new_len)
-    
-    array_num_doc = []
-    array_wordsets = []
-    columnas = matriz_doc_ws_expanded.columns.values.tolist()
-    wordsets_names = columnas[:len(columnas)-2]
-    num_wordsets = len(wordsets_names)
-    for opinion in matriz_doc_ws_expanded.iterrows():
-        for wordset in wordsets_names:
-            if opinion[1][wordset] == 1:
-                array_num_doc.append(opinion[0])
-                array_wordsets.append(wordset)
-    edgelist = pd.DataFrame(zip(array_num_doc, array_wordsets), columns=['from', 'to'])
-    edgelist = pd.merge(edgelist, matriz_doc_ws_expanded['rating'], left_on='from', right_index=True, how='inner')
-    
-    df = round(edgelist.groupby(['to', 'rating']).count()/10)
-    
-    items = []
-    for item in df.iterrows():
-        if item[1][0] >= 1:
-            i = 0
-            for i in range(0, int(item[1][0])+1):
-                item_dic = {'from': str(item[0][0])+'_'+str(int(item[0][1]))+'_'+str(i).zfill(3), 'to':item[0][0], 'rating':item[0][1]}
-                items.append(item_dic)
-    edgelist = pd.DataFrame(items)
-    
-    nodelist = wordsets_names.copy()
-    nodelist.extend(edgelist['from'].unique())
-    nodelist = pd.DataFrame(nodelist, columns=['node_name'])
-    
-    sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
-    ct = 2000/max(sizes)
-    sizes = [size * ct for size in sizes]
-    sizes.extend((len(nodelist)-num_wordsets)*[30])
-    nodelist['size'] = sizes
-    
-    grupos = np.zeros(num_wordsets).tolist()
-    grupos.extend(edgelist['rating'])
-    nodelist['grupo'] = grupos
-    G = nx.Graph()
-    
-    color_map = {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
-    
-    # NODES
-    for index, row in nodelist.iterrows():
-        G.add_node(row['node_name'], group=row['grupo'], color=color_map[row['grupo']], size=row['size'])
-    
-    # EDGES
-    for index, row in edgelist.iterrows():
-        G.add_edge(row['from'], row['to'], color=color_map[row['rating']])
-    
-    labels = {}
-    for node in nodelist['node_name'][:num_wordsets]:
-        labels[node] = node
-                
-    plt.figure(figsize=(25, 25))
-    pos = nx.spring_layout(G, k=0.01, iterations=50)
-    edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
-    nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
-    nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
-    
-    nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=0.4)
-    nx.draw_networkx_labels(G, pos, labels, font_size=20)
-    plt.show()
-########################################################################################################################
-def visualize_wordsets_network_4(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F'):
-    
-    #matriz_doc_ws_expanded = mat_doc_ws_expanded.copy()
-    #ratings='F'
-    #k=0.01
-    #group_size=1
-    
-    wordsets_names_extended = list(matriz_doc_ws_expanded.columns)
-    wordsets_names_extended.remove('total_wordsets')
-    wordsets_names = wordsets_names_extended.copy()
-    wordsets_names.remove('rating')
-    
-    if ratings != 'F':
-        matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
-    
-    mat = matriz_doc_ws_expanded.groupby(wordsets_names_extended).agg({'total_wordsets':np.size})
-    mat.columns =(['num_opiniones'])
-    mat['num_opiniones_mod'] = round(mat['num_opiniones']/group_size)
-    mat = mat[mat['num_opiniones_mod'] >= 1]
-    
-    num_wordsets = len(wordsets_names)
-    edgelist = []
-    for item in mat.iterrows():
-        index_as_list = list(item[0])
-        rating = index_as_list.pop()
-        
-        for j in range(0, int(item[1]['num_opiniones_mod'])):
-            node_id = random.randint(0, 999999999)
-            i = 0
-            for tema in index_as_list:
-                if tema == 1:
-                    edge = {'from':node_id, 'to':wordsets_names[i], 'rating':rating}
-                    edgelist.append(edge)
-                i += 1
-    
-    edgelist = pd.DataFrame(edgelist)
-    
-    nodelist = wordsets_names.copy()
-    nodelist.extend(edgelist['from'].unique())
-    nodelist = pd.DataFrame(nodelist, columns=['node_name'])
-    
-    sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
-    ct = 2000/max(sizes)
-    sizes = [size * ct for size in sizes]
-    sizes.extend((len(nodelist)-num_wordsets)*[30])
-    nodelist['size'] = sizes
-    
-    grupos = np.zeros(num_wordsets).tolist()
-    #grupos.extend(edgelist['rating'])
-    grupos.extend(edgelist.groupby('from').agg({'rating':np.mean})['rating'])
-    nodelist['grupo'] = grupos
-    G = nx.Graph()
-    
-    color_map = {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
-    
-    # NODES
-    for index, row in nodelist.iterrows():
-        G.add_node(row['node_name'], group=row['grupo'], color=color_map[row['grupo']], size=row['size'])
-    
-    # EDGES
-    for index, row in edgelist.iterrows():
-        G.add_edge(row['from'], row['to'], color=color_map[row['rating']])
-    
-    labels = {}
-    for node in nodelist['node_name'][:num_wordsets]:
-        labels[node] = node
-                
-    plt.figure(figsize=(25, 25))
-    pos = nx.spring_layout(G, k=k, iterations=50)
-    edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
-    nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
-    nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
-    
-    nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=0.4)
-    nx.draw_networkx_labels(G, pos, labels, font_size=20)
-    plt.savefig('../viz/'+datetime.now().strftime('%Y%m%d%H%M%S')+'.jpg')
-    plt.show()
 ########################################################################################################################  
 def get_network_color_map():
     return {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
-########################################################################################################################
-def visualize_wordsets_network_5(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F'):
-    
-    #matriz_doc_ws_expanded = mat_doc_ws_expanded.copy()
-    #ratings='F'
-    #k=0.01
-    #group_size=1
-    
-    wordsets_names_extended = list(matriz_doc_ws_expanded.columns)
-    wordsets_names_extended.remove('total_wordsets')
-    wordsets_names = wordsets_names_extended.copy()
-    wordsets_names.remove('rating')
-    
-    if ratings != 'F':
-        matriz_doc_ws_expanded = matriz_doc_ws_expanded[matriz_doc_ws_expanded['rating'].isin(ratings)]
-    
-    mat = matriz_doc_ws_expanded.groupby(wordsets_names_extended).agg({'total_wordsets':np.size})
-    mat.columns =(['num_opiniones'])
-    mat['num_opiniones_mod'] = round(mat['num_opiniones']/group_size)
-    mat = mat[mat['num_opiniones_mod'] >= 1]
-    
-    num_wordsets = len(wordsets_names)
-    edgelist = []
-    for item in mat.iterrows():
-        index_as_list = list(item[0])
-        rating = index_as_list.pop()
-        node_id = random.randint(0, 999999999)
-        i = 0
-        for tema in index_as_list:
-            if tema == 1:
-                edge = {'from':node_id, 'to':wordsets_names[i], 'rating':rating, 'width':int(item[1]['num_opiniones_mod'])}
-                edgelist.append(edge)
-            i += 1
-            
-    edgelist = pd.DataFrame(edgelist)
-    
-    nodelist = wordsets_names.copy()
-    nodelist.extend(edgelist['from'].unique())
-    nodelist = pd.DataFrame(nodelist, columns=['node_name'])
-    
-    sizes = matriz_doc_ws_expanded[wordsets_names].sum().tolist()
-    ct = 2000/max(sizes)
-    sizes = [size * ct for size in sizes]
-    sizes.extend((len(nodelist)-num_wordsets)*[30])
-    nodelist['size'] = sizes
-    nodelist = pd.merge(nodelist, edgelist.groupby('from').agg({'rating':np.mean})['rating'], left_on='node_name', right_on='from', how='outer')
-    nodelist.fillna(0, inplace=True)
-    G = nx.Graph()
-        
-    # NODES
-    for index, row in nodelist.iterrows():
-        G.add_node(row['node_name'], group=row['rating'], color=get_network_color_map()[row['rating']], size=row['size'])
-    
-    # EDGES
-    for index, row in edgelist.iterrows():
-        G.add_edge(row['from'], row['to'], color=get_network_color_map()[row['rating']], width=row['width'])
-    
-    labels = {}
-    for node in nodelist['node_name'][:num_wordsets]:
-        labels[node] = node
-                
-    plt.figure(figsize=(25, 25))
-    pos = nx.spring_layout(G, k=k, iterations=50)
-    edges, edge_colors = zip(*nx.get_edge_attributes(G, 'color').items())
-    edges, edge_widths = zip(*nx.get_edge_attributes(G, 'width').items())
-    nodes, node_colors = zip(*nx.get_node_attributes(G, 'color').items())
-    nodes, node_sizes = zip(*nx.get_node_attributes(G, 'size').items())
-    
-    nx.draw(G, pos=pos, nodelist=nodes, node_size=node_sizes, node_color=node_colors, edgelist=edges, edge_color=edge_colors, width=edge_widths)
-    nx.draw_networkx_labels(G, pos, labels, font_size=20)
-    plt.savefig('../viz/'+datetime.now().strftime('%Y%m%d%H%M%S')+'.jpg')
-    plt.show()
 ########################################################################################################################
 def visualize_wordsets_network_6(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F', mostrar_opiniones = False):
     timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN VISUALIZE_WORDSETS_NETWORK', timestamps=[])
@@ -1950,46 +931,16 @@ def visualize_wordsets_network_6(matriz_doc_ws_expanded, group_size=200, k=0.1, 
     nx.draw_networkx_labels(G, pos, labels, font_size=20)
     plt.savefig('../viz/'+datetime.now().strftime('%Y%m%d%H%M%S')+'.jpg')
     plt.show()
-    timestamps = calcula_y_muestra_tiempos('FIN DE LA FUNCION VISUALIZE_WORDSETS_NETWORK', timestamps=timestamps)
+    calcula_y_muestra_tiempos('FIN DE LA FUNCION VISUALIZE_WORDSETS_NETWORK', timestamps=timestamps)
 ########################################################################################################################
-def analize_advanced(odf, words, bow):
-    wsw =   {
-                'name': 'resultados para el token ' + "'" + words + "'"
-                ,'wordset': 
-                {
-                    'ands': [],
-                    'ors' :
-                        [
-                        {
-                        'syn0': busca_tokens(bow, words),
-                        'syn1': [],
-                        'syn2': [],
-                        'nots': []
-                        }
-                        ]
-                }
-            }
-    an_fil, an_agg = analize_wordset_not_so_naive_4(odf, wsw, show=True)
-    return an_fil, an_agg
-########################################################################################################################
-'''def busca_tokens(bow, words):
-    timestamps = calcula_y_muestra_tiempos_2('INICIO FUNCIÓN BUSCA_TOKENS')
+def busca_tokens(counter, words):
+    #timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN BUSCA_TOKENS', timestamps=[])
     tokens_a_retornar = []
     for word in words:
-        for elemento in bow.iterrows():
-            if elemento[1]['bigram'].split('_').count(word):
-                tokens_a_retornar.append(elemento[1]['bigram'])
-    timestamps = calcula_y_muestra_tiempos_2('FIN FUNCIÓN GENERATE_BOW')
-    return tokens_a_retornar'''
-########################################################################################################################
-def busca_tokens(bow, words):
-    timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN BUSCA_TOKENS', timestamps=[])
-    tokens_a_retornar = []
-    for word in words:
-        for elemento in set(bow['bigram']): # como set el rendimiento mejora espectacularmente
+        for elemento in set(counter): # como set el rendimiento mejora espectacularmente
             if word == elemento or elemento.split('_').count(word):
                 tokens_a_retornar.append(elemento)
-    timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN BUSCA_TOKENS', timestamps)
+    #timestamps = calcula_y_muestra_tiempos('FIN FUNCIÓN BUSCA_TOKENS', timestamps)
     return tokens_a_retornar
 ########################################################################################################################
 def get_heatmap_cmap(grey_shades=True):
@@ -2011,23 +962,6 @@ def get_extended_wordsets_names(mat_doc_ws):
 ########################################################################################################################
 def get_reduced_mat_doc_ws(mat_doc_ws):
     return mat_doc_ws.drop(['total_wordsets', 'rating'], axis=1)
-########################################################################################################################
-def get_sharing_matrix(mat_doc_ws):
-    wordsets_names = get_wordsets_names(mat_doc_ws)
-    mat_doc_ws_reduced = get_reduced_mat_doc_ws(mat_doc_ws)
-    df = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
-    
-    for tema in wordsets_names:
-        df[tema] = mat_doc_ws_reduced[mat_doc_ws_reduced[tema]==1].sum()/mat_doc_ws_reduced.sum()
-    
-    df2 = df.copy()
-    for i in range(0, len(wordsets_names)):
-        #for j in range(i, len(wordsets_names)):
-            #df.iloc[i][j] = 0 #df.iloc[j][i]
-        df2.iloc[i][i] = 0
-    
-    sns.heatmap(df2, cmap=get_heatmap_cmap())
-    return df
 ########################################################################################################################
 def get_sharing_matrix_2(mat_doc_ws):
     wordsets_names = get_wordsets_names(mat_doc_ws)
@@ -2080,7 +1014,6 @@ def print_rating_heatmaps(mat_doc_ws):
     ct = 1/max(heatmap_n2.max())
     heatmap_n2 = heatmap_n2 * ct
     sns.heatmap(heatmap_n2.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
-    #sns.heatmap(heatmap.transpose(), cmap=get_heatmap_cmap())
 ########################################################################################################################
 def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names, n_temas=10):
     lista_combinaciones_populares = []
@@ -2095,25 +1028,10 @@ def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names, n_temas=10):
             i += 1
         lista_combinaciones_populares.append(combinacion)
     
-    
     df_t = pd.DataFrame(lista_combinaciones_populares).sort_values(by=0, ascending=False)
+    df_t.rename(columns={0:'Núm. de hits'}, inplace=True)
+    df_t.drop([3,4,5,6,7,8,9], axis=1, inplace=True)
     return df_t.iloc[:n_temas]
-########################################################################################################################
-'''def statistics_by_topic(mat_doc_ws):
-    dic = []
-    for tema in get_wordsets_names(mat_doc_ws):
-        mat = mat_doc_ws[get_extended_wordsets_names(mat_doc_ws)].groupby(tema).agg({'rating':[np.mean, np.std]}).transpose()
-        mat['0_mean'] = mat.iloc[0][0]
-        mat['0_sd'] = mat.iloc[1][0]
-        mat['1_mean'] = mat.iloc[0][1]
-        mat['1_sd'] = mat.iloc[1][1]
-        mat.drop([0, 1], axis=1, inplace=True)
-        mat.drop(mat.index[1], inplace=True)
-        mat.set_index(pd.Series([tema]), inplace=True)
-        mat = {'tema':tema, '1_mean':mat['1_mean'][0], '1_sd':mat['1_sd'][0], '0_mean':mat['0_mean'][0], '0_sd':mat['0_sd'][0]}
-        dic.append(mat)
-    df_temas = pd.DataFrame.from_dict(dic)
-    return df_temas'''
 ########################################################################################################################
 def statistics_by_topic(mat_doc_ws):
     dic = []
@@ -2129,33 +1047,33 @@ def statistics_by_topic(mat_doc_ws):
         mat.drop(mat.index[1], inplace=True)
         mat.drop(mat.index[1], inplace=True)
         mat.set_index(pd.Series([tema]), inplace=True)
-        mat = {'tema':tema, '1_size':mat['1_size'][0], '1_mean':mat['1_mean'][0], '1_sd':mat['1_sd'][0], '0_size':mat['0_size'][0], '0_mean':mat['0_mean'][0], '0_sd':mat['0_sd'][0]}
+        mat = {'Tema':tema, '1_size':mat['1_size'][0], '1_mean':mat['1_mean'][0], '1_sd':mat['1_sd'][0], '0_size':mat['0_size'][0], '0_mean':mat['0_mean'][0], '0_sd':mat['0_sd'][0]}
         dic.append(mat)
     df_temas = pd.DataFrame.from_dict(dic)
-    #df_temas.index = get_wordsets_names(mat_doc_ws)
     return df_temas
 ########################################################################################################################
 def print_statistics_by_topic_heatmap_rating_value(mat_doc_ws):
     heatmap = statistics_by_topic(mat_doc_ws)
-    heatmap.index=heatmap['tema']
-    heatmap.drop(['tema', '0_size', '1_size', '0_sd', '1_sd'], axis=1, inplace=True)
+    heatmap.index=heatmap['Tema']
+    heatmap.drop(['Tema', '0_size', '1_size', '0_sd', '1_sd'], axis=1, inplace=True)
     heatmap = heatmap.rename(columns={'0_mean':'No Hit', '1_mean':'Hit'})
     sns.heatmap(heatmap, cmap=get_heatmap_cmap(False)) # LEER EN VERTICAL
 ########################################################################################################################
 def print_statistics_by_topic_heatmap_rating_sd(mat_doc_ws):
     heatmap = statistics_by_topic(mat_doc_ws)
-    heatmap.index=heatmap['tema']
-    heatmap.drop(['tema', '0_size', '1_size', '0_mean', '1_mean'], axis=1, inplace=True)
+    heatmap.index=heatmap['Tema']
+    heatmap.drop(['Tema', '0_size', '1_size', '0_mean', '1_mean'], axis=1, inplace=True)
     heatmap = heatmap.rename(columns={'0_sd':'No Hit', '1_sd':'Hit'})
     sns.heatmap(heatmap, cmap=get_heatmap_cmap()) # LEER EN VERTICAL
 ########################################################################################################################
 def get_respuesta_comprador(lista_resultados_analize, matriz_doc_ws):
     lineas = []
     for each in lista_resultados_analize:
-        lineas.append({'tema':each['name'], 'slope':round(LinearRegression().fit(each['agregados'].index.values.reshape((-1, 1)), each['agregados']['doc_number']).coef_[0], 1)})
+        lineas.append({'Tema':each['name'], 'slope':round(LinearRegression().fit(each['agregados'].index.values.reshape((-1, 1)), each['agregados']['doc_number']).coef_[0], 1)})
     respuesta_comprador = pd.DataFrame.from_dict(lineas)
-    respuesta_comprador['slope_mod'] = round(respuesta_comprador['slope']/statistics_by_topic(matriz_doc_ws)['1_size'], 3)
-    respuesta_comprador.sort_values(by='slope_mod', ascending=False, inplace=True)
+    respuesta_comprador['Coef. Respuesta'] = round(respuesta_comprador['slope']/statistics_by_topic(matriz_doc_ws)['1_size'], 3)
+    respuesta_comprador.sort_values(by='Coef. Respuesta', ascending=False, inplace=True)
+    respuesta_comprador.drop(['slope'], axis=1, inplace=True)
     return respuesta_comprador
 ########################################################################################################################
 def get_first_lines_electronics_5(n_rows):
@@ -2206,30 +1124,53 @@ def evaluar_modelo_lstm(modelo_entrenado, dataloader):
     evaluar_modelo_core(aggr, dataloader.dataset.y, y_pred)
 ########################################################################################################################
 def evaluar_modelo_core(aggr, y_true, y_pred):
-    print_simple_histogram(aggr)
+    print_simple_histogram(aggr, title='Distribución de los errores')
     
-    total_0 = aggr[0]
-    total_1 = aggr[1]
-    total_2 = aggr[2]
-    total_3 = aggr[3]
-    total_4 = aggr[4]
+    total_0_parc = aggr[0]
+    total_1_parc = aggr[1]
+    total_2_parc = aggr[2]
+    total_3_parc = aggr[3]
+    total_4_parc = aggr[4]
     
-    ratio_0_acum = (total_0)/aggr.sum()
-    ratio_1_acum = (total_0+total_1)/aggr.sum()
-    ratio_2_acum = (total_0+total_1+total_2)/aggr.sum()
-    ratio_3_acum = (total_0+total_1+total_2+total_3)/aggr.sum()
-    ratio_4_acum = (total_0+total_1+total_2+total_3+total_4)/aggr.sum()
+    total_0_acum = total_0_parc
+    total_1_acum = total_0_acum+total_1_parc
+    total_2_acum = total_1_acum+total_2_parc
+    total_3_acum = total_2_acum+total_3_parc
+    total_4_acum = total_3_acum+total_4_parc
     
-    print("0: %.2f (%2d)" % (ratio_0_acum, total_0))
-    print("1: %.2f (%2d)" % (ratio_1_acum, total_1))
-    print("2: %.2f (%2d)" % (ratio_2_acum, total_2))
-    print("3: %.2f (%2d)" % (ratio_3_acum, total_3))
-    print("4: %.2f (%2d)" % (ratio_4_acum, total_4))
+    ratio_0_parc = total_0_parc/aggr.sum()
+    ratio_1_parc = total_1_parc/aggr.sum()
+    ratio_2_parc = total_2_parc/aggr.sum()
+    ratio_3_parc = total_3_parc/aggr.sum()
+    ratio_4_parc = total_4_parc/aggr.sum() 
+    
+    ratio_0_acum = total_0_parc/aggr.sum()
+    ratio_1_acum = total_1_acum/aggr.sum()
+    ratio_2_acum = total_2_acum/aggr.sum()
+    ratio_3_acum = total_3_acum/aggr.sum()
+    ratio_4_acum = total_4_acum/aggr.sum()
+    
+    str_0_acum = ("0: %.2f (%2d)" % (ratio_0_acum, total_0_acum)).ljust(20, ' ')
+    str_0_parc = ("0: %.2f (%2d)" % (ratio_0_parc, total_0_parc)).ljust(20, ' ')
+    str_1_acum = ("1: %.2f (%2d)" % (ratio_1_acum, total_1_acum)).ljust(20, ' ')
+    str_1_parc = ("1: %.2f (%2d)" % (ratio_1_parc, total_1_parc)).ljust(20, ' ')
+    str_2_acum = ("2: %.2f (%2d)" % (ratio_2_acum, total_2_acum)).ljust(20, ' ')
+    str_2_parc = ("2: %.2f (%2d)" % (ratio_2_parc, total_2_parc)).ljust(20, ' ')
+    str_3_acum = ("3: %.2f (%2d)" % (ratio_3_acum, total_3_acum)).ljust(20, ' ')
+    str_3_parc = ("3: %.2f (%2d)" % (ratio_3_parc, total_3_parc)).ljust(20, ' ')
+    str_4_acum = ("4: %.2f (%2d)" % (ratio_4_acum, total_4_acum)).ljust(20, ' ')
+    str_4_parc = ("4: %.2f (%2d)" % (ratio_4_parc, total_4_parc)).ljust(20, ' ')
+        
+    print('Acumulados'.ljust(20, ' '), 'Parciales'.ljust(20, ' '))
+    print(str_0_acum, str_0_parc)
+    print(str_1_acum, str_1_parc)
+    print(str_2_acum, str_2_parc)
+    print(str_3_acum, str_3_parc)
+    print(str_4_acum, str_4_parc)
+    print()
+    print("Accuracy: %.2f" % (ratio_0_acum))
+    print("Acc1-: %.2f" % (ratio_1_acum))
     print("RMSE: %.2f" % (np.sqrt(mean_squared_error(y_pred, y_true))))
-
-
-
-
 ########################################################################################################################
 def predict_from_text(modelo_entrenado, cv_entrenado, text):
     return unmap_rating(np.argmax(modelo_entrenado.predict_proba(cv_entrenado.transform([text]))))
@@ -2239,3 +1180,135 @@ def get_all_topic_names(topics):
     for topic_name in topics:
         names.append(topic_name)
     return names
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+########################################################################################################################
+def tokenize (text, tok):
+    text = re.sub(r"[^\x00-\x7F]+", " ", text)
+    regex = re.compile('[' + re.escape(string.punctuation) + '0-9\\r\\t\\n]') # remove punctuation and numbers
+    nopunct = regex.sub(" ", text.lower())
+    return [token.text for token in tok.tokenizer(nopunct)]
+########################################################################################################################
+def encode_sentence_(text, vocab2index, N=70):
+    #tokenized = tokenize(text, tok)
+    tokenized = text.split(', ')
+    encoded = np.zeros(N, dtype=int)
+    enc1 = np.array([vocab2index.get(word, vocab2index["UNK"]) for word in tokenized])
+    length = min(N, len(enc1))
+    encoded[:length] = enc1[:length]
+    return encoded, length
+########################################################################################################################
+def encode_sentence(text, vocab2index, tok, N=70):
+    tokenized = tokenize(text, tok)
+    encoded = np.zeros(N, dtype=int)
+    enc1 = np.array([vocab2index.get(word, vocab2index["UNK"]) for word in tokenized])
+    length = min(N, len(enc1))
+    encoded[:length] = enc1[:length]
+    return encoded, length
+########################################################################################################################
+class ReviewsDataset(Dataset):
+    def __init__(self, X, Y):
+        self.X = X
+        self.y = Y
+        
+    def __len__(self):
+        return len(self.y)
+    
+    def __getitem__(self, idx):
+        return torch.from_numpy(self.X[idx][0].astype(np.int32)), self.y[idx], self.X[idx][1]
+########################################################################################################################
+'''def train_model(model, train_dl, val_dl, epochs=10, lr=0.001):
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    optimizer = torch.optim.Adam(parameters, lr=lr)
+    for i in range(epochs):
+        model.train()
+        sum_loss = 0.0
+        total = 0
+        for x, y, l in train_dl:
+            x = x.long()
+            y = y.long()
+            y_pred = model(x)
+            optimizer.zero_grad()
+            loss = F.cross_entropy(y_pred, y)
+            loss.backward()
+            optimizer.step()
+            sum_loss += loss.item()*y.shape[0]
+            total += y.shape[0]
+        val_loss, val_acc, val_rmse = validation_metrics(model, val_dl)
+        print("train loss %.3f, val loss %.3f, val accuracy %.3f, and val rmse %.3f" % (sum_loss/total, val_loss, val_acc, val_rmse))
+'''  
+def train_model(model, train_dl, val_dl, epochs=10, lr=0.001):
+    parameters = filter(lambda p: p.requires_grad, model.parameters())
+    optimizer = torch.optim.Adam(parameters, lr=lr)
+    for i in range(epochs):
+        model.train()
+        sum_loss = 0.0
+        total = 0
+        for x, y, l in train_dl:
+            x = x.long()
+            y = y.long()
+            y_pred = model(x)
+            optimizer.zero_grad()
+            loss = F.cross_entropy(y_pred, y)
+            loss.backward()
+            optimizer.step()
+            sum_loss += loss.item()*y.shape[0]
+            total += y.shape[0]
+        val_loss, val_acc, val_rmse = validation_metrics(model, val_dl)
+        print("train loss %.3f, val loss %.3f, val accuracy %.3f, and val rmse %.3f" % (sum_loss/total, val_loss, val_acc, val_rmse))    
+########################################################################################################################
+def validation_metrics (model, valid_dl):
+    model.eval()
+    correct = 0
+    total = 0
+    sum_loss = 0.0
+    sum_rmse = 0.0
+    for x, y, l in valid_dl:
+        x = x.long()
+        y = y.long()
+        y_hat = model(x)
+        loss = F.cross_entropy(y_hat, y)
+        pred = torch.max(y_hat, 1)[1]
+        correct += (pred == y).float().sum()
+        total += y.shape[0]
+        sum_loss += loss.item()*y.shape[0]
+        sum_rmse += np.sqrt(mean_squared_error(pred, y.unsqueeze(-1)))*y.shape[0]
+    return sum_loss/total, correct/total, sum_rmse/total
+########################################################################################################################
+class LSTM_fixed_len(torch.nn.Module) :
+    def __init__(self, vocab_size, embedding_dim, hidden_dim) :
+        super().__init__()
+        self.embeddings = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
+        self.linear = nn.Linear(hidden_dim, 5)
+        self.dropout = nn.Dropout(0.2)
+        
+    def forward(self, x):
+        x = self.embeddings(x)
+        x = self.dropout(x)
+        lstm_out, (ht, ct) = self.lstm(x)
+        return self.linear(ht[-1])
+########################################################################################################################
+def build_token_counter(odf):
+    token_counter = Counter()
+    for index, row in odf.iterrows():
+        token_counter.update(row['text'].split(', '))
+    return token_counter
