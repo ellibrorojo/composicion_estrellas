@@ -963,7 +963,7 @@ def get_extended_wordsets_names(mat_doc_ws):
 def get_reduced_mat_doc_ws(mat_doc_ws):
     return mat_doc_ws.drop(['total_wordsets', 'rating'], axis=1)
 ########################################################################################################################
-def get_sharing_matrix_2(mat_doc_ws):
+def get_sharing_matrix(mat_doc_ws):
     wordsets_names = get_wordsets_names(mat_doc_ws)
     mat_doc_ws_reduced = get_reduced_mat_doc_ws(mat_doc_ws)
     df = pd.DataFrame([np.zeros(len(wordsets_names)) for i in range(0, len(wordsets_names))], index=wordsets_names, columns=wordsets_names)
@@ -1001,6 +1001,7 @@ def get_sharing_matrix_2(mat_doc_ws):
 def calculate_heatmap_matrix(mat_doc_ws):
     wordsets_names = get_wordsets_names(mat_doc_ws)
     heatmap = mat_doc_ws.groupby('rating').sum()[wordsets_names]
+    heatmap.index.names = ['Puntuación']
     return heatmap
 ########################################################################################################################
 def print_topic_heatmaps(mat_doc_ws):
@@ -1013,7 +1014,13 @@ def print_rating_heatmaps(mat_doc_ws):
     heatmap_n2 = heatmap.div(heatmap.max(axis=1), axis=0)/get_reduced_mat_doc_ws(mat_doc_ws).sum()
     ct = 1/max(heatmap_n2.max())
     heatmap_n2 = heatmap_n2 * ct
-    sns.heatmap(heatmap_n2.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
+    #sns.heatmap(heatmap_n2.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
+    
+    heatmap_n3 = heatmap_n2.div(heatmap_n2.max(axis=1), axis=0)
+    #sns.heatmap(heatmap_n2.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
+    sns.heatmap(heatmap_n3.transpose(), cmap=get_heatmap_cmap()) # LEER EN VERTICAL, ES DECIR CADA RATING
+        
+    
 ########################################################################################################################
 def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names, n_temas=10):
     lista_combinaciones_populares = []
@@ -1030,7 +1037,8 @@ def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names, n_temas=10):
     
     df_t = pd.DataFrame(lista_combinaciones_populares).sort_values(by=0, ascending=False)
     df_t.rename(columns={0:'Núm. de hits'}, inplace=True)
-    df_t.drop([3,4,5,6,7,8,9], axis=1, inplace=True)
+    #df_t.drop([3,4,5,6,7,8,9,10,11,12], axis=1, inplace=True)
+    df_t = df_t[['Núm. de hits', 1, 2]]
     return df_t.iloc[:n_temas]
 ########################################################################################################################
 def statistics_by_topic(mat_doc_ws):
@@ -1273,7 +1281,8 @@ def train_model(model, train_dl, val_dl, epochs=10, lr=0.001):
             sum_loss += loss.item()*y.shape[0]
             total += y.shape[0]
         val_loss, val_acc, val_rmse = validation_metrics(model, val_dl)
-        print("train loss %.3f, val loss %.3f, val accuracy %.3f, and val rmse %.3f" % (sum_loss/total, val_loss, val_acc, val_rmse))    
+        #print("train loss %.3f, val loss %.3f, val accuracy %.3f, and val rmse %.3f" % (sum_loss/total, val_loss, val_acc, val_rmse))
+        print("epoch %.2i: train loss %.3f, val loss %.3f, val accuracy %.3f, and val rmse %.3f" % (i+1, sum_loss/total, val_loss, val_acc, val_rmse))    
 ########################################################################################################################
 def validation_metrics (model, valid_dl):
     model.eval()
