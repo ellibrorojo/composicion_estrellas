@@ -287,6 +287,7 @@ def build_odf(doc_numbers, ratings, summaries_bigrams, summaries_raw, reviews_bi
     tmp.index = tmp['doc_number']
     
     retorno = tmp[['doc_number', 'rating', 'text', 'summary_raw', 'review_raw', 'summary_tokens_length']]
+    retorno['rating'] = map_rating(retorno['rating'])+1
     retorno['rating_0'] = map_rating(retorno['rating'])
     calcula_y_muestra_tiempos('FIN FUNCIÓN BUILD_ODF', timestamps)
     
@@ -623,6 +624,10 @@ def execute_preprocessing_pipeline(opinions_raw, eliminar_poco_frecuentes=True, 
     timestamps = calcula_y_muestra_tiempos('ODF_FALSE CONSTRUIDO', timestamps)
     url_false = r'..\data\odfs\odf_false_'+str(len(odf_false))+'.csv'
     odf_false.to_csv (url_false, index = False, header=True)
+    
+    #odf_reduced = odf_false.sample(n=800, random_state=2020)
+    #odf_reduced.to_csv(r'..\data\odfs\odf_reduced.csv', index = False, header=True, sep=';')
+            
     timestamps = calcula_y_muestra_tiempos('ODF_FALSE SALVADO EN DATA/ODFS', timestamps)
     
     '''
@@ -751,7 +756,7 @@ def analize_wordset_occurrences(df, lista_resultados_analize):
     matriz_documento_wordset['total_wordsets'] = matriz_documento_wordset.sum(axis=1)
     matriz_documento_wordset_agg = matriz_documento_wordset.groupby('total_wordsets').count()[matriz_documento_wordset.groupby('total_wordsets').count().columns[0]].to_frame()
     matriz_documento_wordset_agg.columns.values[0] = 'total_documents'
-    print_simple_histogram(matriz_documento_wordset_agg['total_documents'], title = '# de opiniones por # de hits')
+    print_simple_histogram(matriz_documento_wordset_agg['total_documents'], title = '# de opiniones por núm. de hits')
     print ('La ocupación parcial es del', "{:.0%}".format(np.count_nonzero(matriz_documento_wordset['total_wordsets'])/len(matriz_documento_wordset)))
     print ('La ocupación total es del', "{:.0%}".format(matriz_documento_wordset.sum().sum()/(matriz_documento_wordset.size-len(matriz_documento_wordset))))
     
@@ -795,6 +800,7 @@ def mapear_palabras_especiales(array_input):
                         or x == 'wouldn'
                         or x == 'wouldnt'
                         or x == 'cant'
+                        or x == 'wont'
                         else x for x in array_input]
     return retorno
 ########################################################################################################################
@@ -851,7 +857,7 @@ def get_close_words(df, word, max_distance=3, n_words=8):
 def get_network_color_map():
     return {0:'#E6E6E6', 1:'#cc3232', 2:'#db7b2b', 3:'#e7b416', 4:'#99c140', 5:'#2dc937'}
 ########################################################################################################################
-def visualize_wordsets_network_6(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F', mostrar_opiniones = False):
+def visualize_wordsets_network(matriz_doc_ws_expanded, group_size=200, k=0.1, ratings='F', mostrar_opiniones = False):
     timestamps = calcula_y_muestra_tiempos('INICIO FUNCIÓN VISUALIZE_WORDSETS_NETWORK', timestamps=[])
     #matriz_doc_ws_expanded = mat_doc_ws_expanded.copy()
     #ratings='F'
@@ -996,7 +1002,7 @@ def get_sharing_matrix(mat_doc_ws):
     
     sns.heatmap(df3, cmap=get_heatmap_cmap())
 
-    return df3
+    #return df3
 ########################################################################################################################
 def calculate_heatmap_matrix(mat_doc_ws):
     wordsets_names = get_wordsets_names(mat_doc_ws)
@@ -1026,7 +1032,7 @@ def get_popular_topic_combinations(mat_doc_ws_agg, wordsets_names, n_temas=10):
     lista_combinaciones_populares = []
     for row in mat_doc_ws_agg[mat_doc_ws_agg['total_temas'] > 1].iterrows():
         combinacion = []
-        combinacion.append(row[1]['total_opiniones'])
+        combinacion.append(int(row[1]['total_opiniones']))
         index_as_list = list(row[0])
         i = 0
         for tema in index_as_list:
@@ -1116,7 +1122,7 @@ def unmap_rating(rating_0_based):
 def evaluar_modelo_reg(modelo_entrenado, X_test, y_test):
    
     y_pred = modelo_entrenado.predict(X_test)
-    y_diff = abs(y_pred-y_test)
+    y_diff = pd.Series(abs(y_pred-y_test))
     aggr = y_diff.groupby(y_diff).count()
     
     evaluar_modelo_core(aggr, y_test, y_pred)
@@ -1188,12 +1194,119 @@ def get_all_topic_names(topics):
     for topic_name in topics:
         names.append(topic_name)
     return names
-
-
-
-
-
-
+########################################################################################################################
+def print_total_wordsets_rating(mat_doc_ws):
+    mat3 = mat_doc_ws.groupby('rating').sum()
+    mat3['rating'] = mat3.index.values
+    mat3 = mat3[['rating', 'total_wordsets']]
+    
+    mat4 = mat_doc_ws[mat_doc_ws['total_wordsets'] > 0].groupby('rating').count()['total_wordsets']
+    
+    medias = mat3.div(mat4, axis=0)
+    medias = medias[['total_wordsets']]
+    medias.rename(columns={'total_wordsets':'Núm. de hits (media)'}, inplace=True)
+    
+    x_values = list(medias.index.values)
+    x_values = list(map(int, x_values))
+    data1 = mat3['total_wordsets']
+    data2 = medias['Núm. de hits (media)']
+    
+    fig, ax1 = plt.subplots()
+    
+    color = 'tab:blue'
+    #ax1.set_xlabel('time (s)')
+    ax1.set_ylabel('Total hits', color=color)
+    ax1.bar(x_values, data1, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+    
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+    
+    color = 'tab:red'
+    ax2.set_ylabel('Núm. de hits (media)', color=color)  # we already handled the x-label with ax1
+    ax2.scatter(x_values, data2, color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+    
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+    plt.show()
+########################################################################################################################
+def evaluar_predicciones_humanas(tipo_opinion):
+    odf_reduced = pd.read_csv(r'..\data\odfs\odf_reduced.csv', sep=';')
+    odf_reduced.index = odf_reduced['doc_number']
+    odf_reduced['len'] = odf_reduced.apply(lambda row: len(row['text']), axis=1)
+    odf_reduced = odf_reduced[odf_reduced['len'] < 150]
+    odf_reduced = odf_reduced[['doc_number', 'rating', 'text', 'summary_raw', 'review_raw']]
+    odf_reduced = odf_reduced.sort_values('rating', ascending=False)
+    
+    df = pd.read_csv(r'../data/results/results.csv', keep_default_na=False)
+    df = df.drop(['Timestamp'], axis=1)
+    
+    codigos_preguntas = [df.columns.values][0]
+    codigos_preguntas[2].index(']')
+    
+    codigos_preguntas_2 = []
+    true_ratings = []
+    for elem in [df.columns.values][0]:
+        codigo = elem[:elem.index(']')+1]
+        codigo = codigo.replace('[', '').replace(']', '')
+        codigo_base = int(codigo[:codigo.index('_')])
+        true_rating = odf_reduced.loc[codigo_base]['rating']
+        true_ratings.append(true_rating)
+        codigos_preguntas_2.append(codigo)
+    
+    df.columns = codigos_preguntas_2
+    df = df.transpose()
+    df['true_rating'] = true_ratings
+    
+    
+    
+    respuestas = list(df.columns.values)
+    respuestas.remove('true_rating')
+    diferencias_tokens = []
+    diferencias_full   = []
+    true_ratings_tokens = []
+    true_ratings_full = []
+    predicciones_tokens = []
+    predicciones_full = []
+    for index, row in df.iterrows():
+        true_rating = row['true_rating']
+        tipo = index[-1]
+        for respuesta in respuestas:
+            prediccion = row[respuesta]
+            if(prediccion != ''):
+                prediccion = int(prediccion)
+                if(tipo == 'f'):
+                    diferencias_full.append(abs(prediccion-true_rating))
+                    true_ratings_full.append(true_rating)
+                    predicciones_full.append(prediccion)
+                if(tipo == 't'):
+                    diferencias_tokens.append(abs(prediccion-true_rating))
+                    true_ratings_tokens.append(true_rating)
+                    predicciones_tokens.append(prediccion)
+    
+    agg = pd.DataFrame(np.unique(diferencias_full, return_counts=True))
+    agg = agg.transpose()
+    dicc = {}
+    dicc[0] = agg[agg[0] == 0][1].values[0] if len(agg[agg[0] == 0][1].values) > 0 else 0
+    dicc[1] = agg[agg[0] == 1][1].values[0] if len(agg[agg[0] == 1][1].values) > 0 else 0
+    dicc[2] = agg[agg[0] == 2][1].values[0] if len(agg[agg[0] == 2][1].values) > 0 else 0
+    dicc[3] = agg[agg[0] == 3][1].values[0] if len(agg[agg[0] == 3][1].values) > 0 else 0
+    dicc[4] = agg[agg[0] == 4][1].values[0] if len(agg[agg[0] == 4][1].values) > 0 else 0
+    agg = pd.DataFrame.from_dict(dicc, orient='index')
+    if(tipo_opinion == 'completa'):
+        evaluar_modelo_core(agg[0], true_ratings_full, predicciones_full)
+    
+    agg = pd.DataFrame(np.unique(diferencias_tokens, return_counts=True))
+    agg = agg.transpose()
+    dicc = {}
+    dicc[0] = agg[agg[0] == 0][1].values[0] if len(agg[agg[0] == 0][1].values) > 0 else 0
+    dicc[1] = agg[agg[0] == 1][1].values[0] if len(agg[agg[0] == 1][1].values) > 0 else 0
+    dicc[2] = agg[agg[0] == 2][1].values[0] if len(agg[agg[0] == 2][1].values) > 0 else 0
+    dicc[3] = agg[agg[0] == 3][1].values[0] if len(agg[agg[0] == 3][1].values) > 0 else 0
+    dicc[4] = agg[agg[0] == 4][1].values[0] if len(agg[agg[0] == 4][1].values) > 0 else 0
+    agg = pd.DataFrame.from_dict(dicc, orient='index')
+    if(tipo_opinion == 'tokenizada'):
+        evaluar_modelo_core(agg[0], true_ratings_tokens, predicciones_tokens)
+########################################################################################################################
 
 
 
