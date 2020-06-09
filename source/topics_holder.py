@@ -97,7 +97,8 @@ def generate_topics(tokens):
                         },
                         {
                         'syn0': ['unreliable',
-                                 'works_intermittently'],
+                                 'works_intermittently',
+                                 'poor_reliability'],
                         'syn1': ['reliable'],
                         'syn2': ['not'],
                         'nots': []
@@ -112,6 +113,18 @@ def generate_topics(tokens):
                                  'quits_working',
                                  'quitted_working'],
                         'syn2': [],
+                        'nots': []
+                        }
+                        ,{
+                        'syn0': ['not_durable'],
+                        'syn1': ['durable'],
+                        'syn2': ['not'],
+                        'nots': []
+                        }
+                        ,{
+                        'syn0': [],
+                        'syn1': ['broke'],
+                        'syn2': ['right_away'],
                         'nots': []
                         }
                         ,{
@@ -966,6 +979,12 @@ def generate_topics(tokens):
                         }
                         ,{
                         'syn0': utils.busca_tokens(tokens, ['expensive']),
+                        'syn1': [],
+                        'syn2': [],
+                        'nots': []
+                        }
+                        ,{
+                        'syn0': utils.busca_tokens(tokens, ['inexpensive']),
                         'syn1': [],
                         'syn2': [],
                         'nots': []
